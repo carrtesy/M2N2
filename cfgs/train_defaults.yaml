@@ -1,0 +1,30 @@
+# Exp ID
+exp_id: default
+
+# Data Preprocessing
+dataset: NeurIPS-TS-MUL
+batch_size: 64
+eval_batch_size: 64
+window_size: 12
+stride: 1
+eval_stride: 12
+scaler: std
+
+# Training Hyperparameters
+lr: 1e-03
+epochs: 30
+
+# Saving Configs & Paths
+log_freq: 10
+checkpoint_path: ./checkpoints
+log_path: ./logs
+output_path: ./outputs
+plot_path: ./plots
+result_path: ./results
+
+# Thresholding
+thresholding: oracle
+
+# Model-specific arguments
+defaults:
+  - model: OCSVM
