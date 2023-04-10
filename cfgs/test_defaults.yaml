@@ -1,5 +1,16 @@
 # Exp ID
 exp_id: default
+infer_options: [
+  "offline",
+  "online_us_bce_seq",
+  #"online_us_focal_seq",
+  #"online_us_bce_joint",
+  #"online_us_focal_joint",
+  #"online_label_bce_seq",
+  #"online_label_focal_seq",
+  #"online_label_bce_joint",
+  #"online_label_focal_joint",
+]
 
 # Data Preprocessing
 dataset: NeurIPS-TS-MUL
@@ -9,10 +20,17 @@ window_size: 12
 stride: 1
 eval_stride: 12
 scaler: std
+load_previous_error: True
 
 # Training Hyperparameters
 lr: 1e-03
 epochs: 30
+
+# test-time Hyperparameters
+TT_loss: bce
+cls_lambda: 1
+ttlr: 1e-03
+thlr: 1e-03
 
 # Saving Configs & Paths
 log_freq: 10
@@ -21,10 +39,10 @@ log_path: ./logs
 output_path: ./outputs
 plot_path: ./plots
 result_path: ./results
+plot_anomaly_scores: True
+plot_recon_status: False
 
-# Thresholding
-thresholding: oracle
 
 # Model-specific arguments
 defaults:
-  - model: OCSVM
+  - model: MLP

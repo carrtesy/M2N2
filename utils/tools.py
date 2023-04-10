@@ -27,18 +27,30 @@ def to_var(x, volatile=False):
     return Variable(x, volatile=volatile)
 
 
-def plot_anomaly(ax, test_y):
+def plot_interval(ax, interval, facecolor="red", alpha=0.5):
     s, e = None, None
-    for i in range(len(test_y)):
-        if test_y[i] == 1 and s is None:
+    n = len(interval)
+    for i in range(n):
+        if interval[i] == 1 and s is None:
             s = i
-        elif test_y[i] == 0 and s is not None:
+        elif interval[i] == 0 and s is not None:
             e = i - 1
             if (e - s) > 0:
-                ax.axvspan(s, e, facecolor='red', alpha=0.5)
+                ax.axvspan(s, e, facecolor=facecolor, alpha=alpha)
             else:
-                ax.axvspan(s-0.5, s+0.5, facecolor='red', alpha=0.5)
+                ax.axvspan(s-0.5, s+0.5, facecolor=facecolor, alpha=alpha)
             s, e = None, None
+
+    if s is not None:
+        if (n - 1 - s) > 0:
+            ax.axvspan(s, n-1, facecolor=facecolor, alpha=alpha)
+        else:
+            ax.axvspan(s - 0.5, s + 0.5, facecolor=facecolor, alpha=alpha)
+
+
+def set_requires_grad(model, val):
+    for p in model.parameters():
+        p.requires_grad = val
 
 
 if __name__ == "__main__":

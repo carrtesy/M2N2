@@ -11,9 +11,7 @@ class DataFactory:
     def __init__(self, args, logger):
         self.args = args
         self.logger = logger
-        self.home_dir = args.home_dir
         self.logger.info(f"current location: {os.getcwd()}")
-        self.logger.info(f"home dir: {args.home_dir}")
 
         self.dataset_fn_dict = {
             "toyUSW": self.load_toyUSW,
@@ -25,6 +23,8 @@ class DataFactory:
             "PSM": self.load_PSM,
             "SMAP": self.load_SMAP,
             "MSL": self.load_MSL,
+            "Pump": self.load_Pump,
+            "CreditCard": self.load_CreditCard,
         }
         self.datasets = {
             "toyUSW": TSADStandardDataset,
@@ -36,6 +36,8 @@ class DataFactory:
             "PSM": TSADStandardDataset,
             "SMAP": TSADStandardDataset,
             "MSL": TSADStandardDataset,
+            "Pump": TSADStandardDataset,
+            "CreditCard": TSADStandardDataset,
         }
 
         self.transforms = {
@@ -87,7 +89,7 @@ class DataFactory:
 
 
     def load(self):
-        return self.dataset_fn_dict[self.args.dataset](self.home_dir)
+        return self.dataset_fn_dict[self.args.dataset]()
 
 
     def prepare(self, train_X, train_y, test_X, test_y,
@@ -132,16 +134,16 @@ class DataFactory:
 
 
     @staticmethod
-    def load_toyUSW(home_dir="."):
+    def load_toyUSW():
         base_dir = "data/toyUSW"
-        with open(os.path.join(home_dir, base_dir, "train.npy"), 'rb') as f:
+        with open(os.path.join(base_dir, "train.npy"), 'rb') as f:
             train_X = np.load(f)
-        with open(os.path.join(home_dir, base_dir, "train_label.npy"), 'rb') as f:
+        with open(os.path.join(base_dir, "train_label.npy"), 'rb') as f:
             train_y = np.load(f)
 
-        with open(os.path.join(home_dir, base_dir, "test.npy"), 'rb') as f:
+        with open(os.path.join(base_dir, "test.npy"), 'rb') as f:
             test_X = np.load(f)
-        with open(os.path.join(home_dir, base_dir, "test_label.npy"), 'rb') as f:
+        with open(os.path.join(base_dir, "test_label.npy"), 'rb') as f:
             test_y = np.load(f)
 
         train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
@@ -154,10 +156,10 @@ class DataFactory:
 
 
     @staticmethod
-    def load_NeurIPS_TS_UNI(home_dir="."):
+    def load_NeurIPS_TS_UNI():
         base_dir = "data/NeurIPS-TS"
-        normal = pd.read_csv(os.path.join(home_dir, base_dir, "nts_uni_normal.csv"))
-        abnormal = pd.read_csv(os.path.join(home_dir, base_dir, "nts_uni_abnormal.csv"))
+        normal = pd.read_csv(os.path.join(base_dir, "nts_uni_normal.csv"))
+        abnormal = pd.read_csv(os.path.join(base_dir, "nts_uni_abnormal.csv"))
 
         train_X, train_y = normal.values[:, :-1], normal.values[:, -1]
         test_X, test_y = abnormal.values[:, :-1], abnormal.values[:, -1]
@@ -172,11 +174,11 @@ class DataFactory:
 
 
     @staticmethod
-    def load_NeurIPS_TS_MUL(home_dir="."):
+    def load_NeurIPS_TS_MUL():
 
         base_dir = "data/NeurIPS-TS"
-        normal = pd.read_csv(os.path.join(home_dir, base_dir, "nts_mul_normal.csv"))
-        abnormal = pd.read_csv(os.path.join(home_dir, base_dir, "nts_mul_abnormal.csv"))
+        normal = pd.read_csv(os.path.join(base_dir, "nts_mul_normal.csv"))
+        abnormal = pd.read_csv(os.path.join(base_dir, "nts_mul_abnormal.csv"))
 
         train_X, train_y = normal.values[:, :-1], normal.values[:, -1]
         test_X, test_y = abnormal.values[:, :-1], abnormal.values[:, -1]
@@ -191,10 +193,10 @@ class DataFactory:
 
 
     @staticmethod
-    def load_SWaT(home_dir="."):
+    def load_SWaT():
         base_dir = "data/SWaT"
-        SWAT_TRAIN_PATH = os.path.join(home_dir, base_dir, 'SWaT_Dataset_Normal_v0.csv')
-        SWAT_TEST_PATH = os.path.join(home_dir, base_dir, 'SWaT_Dataset_Attack_v0.csv')
+        SWAT_TRAIN_PATH = os.path.join(base_dir, 'SWaT_Dataset_Normal_v0.csv')
+        SWAT_TEST_PATH = os.path.join(base_dir, 'SWaT_Dataset_Attack_v0.csv')
         df_train = pd.read_csv(SWAT_TRAIN_PATH, index_col=0)
         df_test = pd.read_csv(SWAT_TEST_PATH, index_col=0)
 
@@ -221,12 +223,14 @@ class DataFactory:
 
 
     @staticmethod
-    def load_WADI(home_dir="."):
+    def load_WADI():
         base_dir = "data/WADI"
-        WADI_TRAIN_PATH = os.path.join(home_dir, base_dir, 'WADI_14days_new.csv')
-        WADI_TEST_PATH = os.path.join(home_dir, base_dir, 'WADI_attackdataLABLE.csv')
-        df_train = pd.read_csv(WADI_TRAIN_PATH, index_col=0)
+        WADI_TRAIN_PATH = os.path.join(base_dir, 'WADI_14days_new.csv')
+        WADI_TEST_PATH = os.path.join(base_dir, 'WADI_attackdataLABLE.csv')
+        df_train = pd.read_csv(WADI_TRAIN_PATH, index_col=0) # Drop row that has all NaN values
+        df_train = df_train.dropna(how="all")
         df_test = pd.read_csv(WADI_TEST_PATH, index_col=0, skiprows=[0]) # apply skiprow or erase the first row
+        df_train = df_train.dropna(thresh=2) # Keep only the rows with at least 2 non-NA values.
 
         # df_train
         for col in df_train.columns:
@@ -261,15 +265,15 @@ class DataFactory:
 
 
     @staticmethod
-    def load_SMD(home_dir="."):
+    def load_SMD():
         base_dir = "data/SMD"
-        with open(os.path.join(home_dir, base_dir, "SMD_train.pkl"), 'rb') as f:
+        with open(os.path.join(base_dir, "SMD_train.pkl"), 'rb') as f:
             train_X = pickle.load(f)
         T, C = train_X.shape
         train_y = np.zeros((T,), dtype=int)
-        with open(os.path.join(home_dir, base_dir, "SMD_test.pkl"), 'rb') as f:
+        with open(os.path.join(base_dir, "SMD_test.pkl"), 'rb') as f:
             test_X = pickle.load(f)
-        with open(os.path.join(home_dir, base_dir, "SMD_test_label.pkl"), 'rb') as f:
+        with open(os.path.join(base_dir, "SMD_test_label.pkl"), 'rb') as f:
             test_y = pickle.load(f)
 
         train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
@@ -282,8 +286,8 @@ class DataFactory:
 
 
     @staticmethod
-    def load_PSM(home_dir="."):
-        PSM_PATH = os.path.join(home_dir, "data", "PSM")
+    def load_PSM():
+        PSM_PATH = os.path.join("data", "PSM")
 
         df_train_X = pd.read_csv(os.path.join(PSM_PATH, "train.csv"), index_col=0)
         df_train_X.fillna(method='ffill', inplace=True)
@@ -304,6 +308,49 @@ class DataFactory:
 
         train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
         train_y, test_y = train_y.astype(int), test_y.astype(int)
+
+        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
+        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
+
+        return train_X, train_y, test_X, test_y
+
+
+    @staticmethod
+    def load_Pump():
+        data_df = pd.read_csv("data/Pump/sensor.csv", index_col=0)
+        data_df = data_df.drop(["sensor_15","sensor_50"], axis=1) # delete data with nan values
+
+        N = len(data_df)
+        df_train = data_df[:N//2]
+        df_test = data_df[N//2:]
+
+        df_train.fillna(method="ffill", inplace=True)
+        df_train.fillna(method="bfill", inplace=True)
+        df_test.fillna(method="ffill", inplace=True)
+        df_test.fillna(method="bfill", inplace=True)
+
+        train_X = df_train.values[:,1:-1].astype(np.float32)
+        test_X = df_test.values[:,1:-1].astype(np.float32)
+        T, C = train_X.shape
+        train_y = np.zeros((T, ), dtype=int)
+        test_y = (df_test["machine_status"] != "NORMAL").to_numpy().astype(int)
+
+        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
+        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
+
+        return train_X, train_y, test_X, test_y
+
+
+    @staticmethod
+    def load_CreditCard():
+        data_df = pd.read_csv("data/CreditCard/creditcard.csv", index_col=0)
+
+        N = len(data_df)
+        X, y = data_df.values[:, 0:-1].astype(np.float32), data_df.values[:,-1].astype(int)
+
+        train_X, test_X = X[:N//2], X[N//2:]
+        T, C = train_X.shape
+        train_y, test_y = y[:N//2], y[N//2:]
 
         assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
         assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0

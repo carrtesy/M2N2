@@ -5,6 +5,30 @@ Dongmin Kim (tommy.dm.kim@gmail.com)
 
 import torch
 import torch.nn as nn
+from models import RevIN
+
+class MLP(nn.Module):
+    def __init__(self, seq_len, num_channels, latent_space_size, use_RevIN=False):
+        super().__init__()
+        self.L, self.C = seq_len, num_channels
+        self.encoder = Encoder(seq_len*num_channels, latent_space_size)
+        self.decoder = Decoder(seq_len*num_channels, latent_space_size)
+        self.use_RevIN = use_RevIN
+        if self.use_RevIN:
+            self.revin = RevIN(num_channels)
+
+
+    def forward(self, X):
+        B, L, C = X.shape
+        assert (L == self.L) and (C == self.C)
+
+        if self.use_RevIN:
+            X = self.revin(X, "norm")
+        z = self.encoder(X.reshape(B, L*C))
+        out = self.decoder(z).reshape(B, L, C)
+        if self.use_RevIN:
+            out = self.revin(X, "denorm")
+        return out
 
 class Encoder(nn.Module):
     def __init__(self, input_size, latent_space_size):
@@ -25,6 +49,7 @@ class Encoder(nn.Module):
         out = self.relu3(x)
         return out
 
+
 class Decoder(nn.Module):
     def __init__(self, input_size, latent_space_size):
         super().__init__()
@@ -42,15 +67,5 @@ class Decoder(nn.Module):
         out = self.linear3(x)
         return out
 
-class MLP(nn.Module):
-    def __init__(self, input_size, latent_space_size):
-        super().__init__()
-        self.encoder = Encoder(input_size, latent_space_size)
-        self.decoder = Decoder(input_size, latent_space_size)
-
-    def forward(self, x):
-        z = self.encoder(x)
-        out = self.decoder(z)
-        return out
 
 

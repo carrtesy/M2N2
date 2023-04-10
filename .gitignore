@@ -10,3 +10,4 @@
 /plots/
 /result/
 /data/
+*__pycache__*

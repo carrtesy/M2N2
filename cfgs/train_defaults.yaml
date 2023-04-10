@@ -27,4 +27,4 @@ thresholding: oracle
 
 # Model-specific arguments
 defaults:
-  - model: OCSVM
+  - model: MLP

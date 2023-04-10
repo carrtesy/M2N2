@@ -80,10 +80,24 @@ def main(cfg: DictConfig) -> None:
         train_loader=train_loader,
         test_loader=test_loader,
     )
-    tester.load(os.path.join(args.checkpoint_path, f"best.pth"))
 
     # infer
-    result = tester.infer()
+    cols = ["Accuracy", "Precision", "Recall", "F1", "tn", "fp", "fn", "tp"]
+    result_df = pd.DataFrame([], columns=cols)
+    for option in args.infer_options:
+        try:
+            result = tester.infer(mode=option, cols=cols)
+            result_df = result_df.append(result)
+        except Exception as e:
+            logger.info(f"Error occurred: {option}")
+            logger.info(f"Error message: {e}")
+            pass
+
+    logger.info(f"\n{result_df.to_string()}")
+
+    # log result
+    wt = wandb.Table(dataframe=result_df)
+    wandb.log({"result_table": wt})
 
 if __name__ == "__main__":
     main()
