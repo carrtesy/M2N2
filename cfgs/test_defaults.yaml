@@ -2,7 +2,8 @@
 exp_id: default
 infer_options: [
   "offline",
-  "online_us_bce_seq",
+  #"online_us_bce_seq",
+  "online_us_bce_seq_ARevIN"
   #"online_us_focal_seq",
   #"online_us_bce_joint",
   #"online_us_focal_joint",
@@ -32,6 +33,10 @@ cls_lambda: 1
 ttlr: 1e-03
 thlr: 1e-03
 
+# others
+RevIN: "None"
+gamma: 0.99
+
 # Saving Configs & Paths
 log_freq: 10
 checkpoint_path: ./checkpoints
@@ -41,7 +46,6 @@ plot_path: ./plots
 result_path: ./results
 plot_anomaly_scores: True
 plot_recon_status: False
-
 
 # Model-specific arguments
 defaults:

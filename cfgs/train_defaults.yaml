@@ -2,7 +2,7 @@
 exp_id: default
 
 # Data Preprocessing
-dataset: NeurIPS-TS-MUL
+dataset: SWaT
 batch_size: 64
 eval_batch_size: 64
 window_size: 12
@@ -12,7 +12,7 @@ scaler: std
 
 # Training Hyperparameters
 lr: 1e-03
-epochs: 30
+epochs: 10
 
 # Saving Configs & Paths
 log_freq: 10
@@ -24,6 +24,10 @@ result_path: ./results
 
 # Thresholding
 thresholding: oracle
+
+# RevIN
+RevIN: "None"
+gamma: 0.99
 
 # Model-specific arguments
 defaults:

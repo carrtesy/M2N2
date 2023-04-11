@@ -34,6 +34,8 @@ class MLP_Trainer(Trainer):
             seq_len=args.window_size,
             num_channels=args.num_channels,
             latent_space_size=args.model.latent_dim,
+            gamma=args.gamma,
+            RevIN=args.RevIN,
         ).to(self.args.device)
 
         self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=args.lr)
@@ -80,6 +82,10 @@ class MLP_Trainer(Trainer):
         X = batch_data[0].to(self.args.device)
         B, L, C = X.shape
 
+        # update mean, var
+        if self.args.RevIN != "None":
+            self.model.revin._update_statistics(X)
+
         # recon
         Xhat = self.model(X)
 
@@ -110,6 +116,8 @@ class MLP_Tester(Tester):
             seq_len=args.window_size,
             num_channels=args.num_channels,
             latent_space_size=args.model.latent_dim,
+            gamma=args.gamma,
+            RevIN=args.RevIN,
         ).to(self.args.device)
 
         self.load_trained_model()
@@ -139,6 +147,7 @@ class MLP_Tester(Tester):
             self.logger.info("saving train_errors.pt...")
             with open(train_error_pt_path, 'wb') as f:
                 torch.save(train_errors, f)
+        torch.cuda.empty_cache()
 
         # test
         test_error_pt_path = os.path.join(self.args.output_path, "test_errors.pt")
@@ -154,6 +163,7 @@ class MLP_Tester(Tester):
             self.logger.info("saving test_errors.pt...")
             with open(test_error_pt_path, 'wb') as f:
                 torch.save(test_errors, f)
+        torch.cuda.empty_cache()
 
         # test errors (T=B*L, C) and ground truth
         self.test_errors = test_errors.reshape(-1).detach().cpu().numpy()
@@ -225,6 +235,11 @@ class MLP_Tester(Tester):
             pred = self.online_us_jointly(self.test_loader, self.th_q95, cls_loss="focal")
             result = get_summary_stats(gt, pred)
 
+        # unsupervised + ARevIN
+        elif mode == "online_us_bce_seq_ARevIN":
+            pred = self.online_us(self.test_loader, self.th_q95, cls_loss="bce", revin="ARevIN")
+            result = get_summary_stats(gt, pred)
+
         wandb.log(result)
         result = pd.DataFrame([result], index=[mode], columns=result_df.columns)
         self.logger.info(f"{mode} \n {result.to_string()}")
@@ -259,7 +274,7 @@ class MLP_Tester(Tester):
         return result_df
 
 
-    def online_us(self, dataloader, init_thr, cls_loss="bce"):
+    def online_us(self, dataloader, init_thr, cls_loss="bce", revin="None"):
         self.load_trained_model() # reset
 
         it = tqdm(
@@ -284,10 +299,16 @@ class MLP_Tester(Tester):
             X = batch_data[0].to(self.args.device)
             B, L, C = X.shape
 
+            # Revin Update
+            if revin != "None":
+                self.model.revin._update_statistics(X)
+            tau = torch.clamp(thr, min=init_thr)
+
+            # inference
             Xhat = self.model(X)
             E = F.mse_loss(Xhat, X, reduction='none')
             A = E.mean(dim=2)
-            ytilde = (A > thr).float()
+            ytilde = (A > tau).float()
             pred = ytilde
 
             # log model outputs
@@ -295,7 +316,7 @@ class MLP_Tester(Tester):
             Xhats.append(Xhat.clone().detach())
             As.append(A.clone().detach())
             preds.append(pred.clone().detach())
-            thrs.append(thr.clone().detach().item())
+            thrs.append(tau.clone().detach().item())
 
             # learn new-normals
             TT_optimizer.zero_grad()
@@ -309,10 +330,11 @@ class MLP_Tester(Tester):
             Xhat = self.model(X)
             E = F.mse_loss(Xhat, X, reduction='none')
             A = E.mean(dim=2)
-            yhat = torch.sigmoid((A - thr))
+            yhat = torch.sigmoid((A - tau))
             cls_loss = loss_fn(yhat, ytilde.float())
             cls_loss.backward()
             TH_optimizer.step()
+
 
         # outputs
         Xs = torch.cat(Xs, axis=0).detach().cpu().numpy()

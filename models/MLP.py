@@ -5,17 +5,20 @@ Dongmin Kim (tommy.dm.kim@gmail.com)
 
 import torch
 import torch.nn as nn
-from models import RevIN
+from models.RevIN import RevIN, ARevIN
 
 class MLP(nn.Module):
-    def __init__(self, seq_len, num_channels, latent_space_size, use_RevIN=False):
+    def __init__(self, seq_len, num_channels, latent_space_size, gamma, RevIN="None"):
         super().__init__()
         self.L, self.C = seq_len, num_channels
         self.encoder = Encoder(seq_len*num_channels, latent_space_size)
         self.decoder = Decoder(seq_len*num_channels, latent_space_size)
-        self.use_RevIN = use_RevIN
-        if self.use_RevIN:
-            self.revin = RevIN(num_channels)
+        self.RevIN = RevIN
+        if self.RevIN != "None":
+            self.use_RevIN = True
+            self.revin = RevIN(num_channels) if self.RevIN == "RevIN" else ARevIN(num_channels, gamma=gamma)
+        else:
+            self.use_RevIN = False
 
 
     def forward(self, X):
@@ -27,8 +30,9 @@ class MLP(nn.Module):
         z = self.encoder(X.reshape(B, L*C))
         out = self.decoder(z).reshape(B, L, C)
         if self.use_RevIN:
-            out = self.revin(X, "denorm")
+            out = self.revin(out, "denorm")
         return out
+
 
 class Encoder(nn.Module):
     def __init__(self, input_size, latent_space_size):
