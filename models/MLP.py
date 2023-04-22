@@ -5,32 +5,37 @@ Dongmin Kim (tommy.dm.kim@gmail.com)
 
 import torch
 import torch.nn as nn
-from models.RevIN import RevIN, ARevIN
+from models.Normalizer import RevIN, SlowRevIN
+
 
 class MLP(nn.Module):
-    def __init__(self, seq_len, num_channels, latent_space_size, gamma, RevIN="None"):
+    def __init__(self, seq_len, num_channels, latent_space_size, gamma, normalization="None"):
         super().__init__()
         self.L, self.C = seq_len, num_channels
         self.encoder = Encoder(seq_len*num_channels, latent_space_size)
         self.decoder = Decoder(seq_len*num_channels, latent_space_size)
-        self.RevIN = RevIN
-        if self.RevIN != "None":
-            self.use_RevIN = True
-            self.revin = RevIN(num_channels) if self.RevIN == "RevIN" else ARevIN(num_channels, gamma=gamma)
+        self.normalization = normalization
+
+        if self.normalization == "RevIN":
+            self.use_normalizer = True
+            self.normalizer = RevIN(num_channels)
+        elif self.normalization == "SlowRevIN":
+            self.use_normalizer = True
+            self.normalizer = SlowRevIN(num_channels, gamma=gamma)
         else:
-            self.use_RevIN = False
+            self.use_normalizer = False
 
 
     def forward(self, X):
         B, L, C = X.shape
         assert (L == self.L) and (C == self.C)
 
-        if self.use_RevIN:
-            X = self.revin(X, "norm")
+        if self.use_normalizer:
+            X = self.normalizer(X, "norm")
         z = self.encoder(X.reshape(B, L*C))
         out = self.decoder(z).reshape(B, L, C)
-        if self.use_RevIN:
-            out = self.revin(out, "denorm")
+        if self.use_normalizer:
+            out = self.normalizer(out, "denorm")
         return out
 
 

@@ -42,7 +42,7 @@ def configure_exp_id(args):
     if args.exp_id == "default":
         model = args.model.name
         dataset = args.dataset
-        new_exp_id = f"{model}_{dataset}_RevIN_{args.RevIN}"
+        new_exp_id = f"{model}_{dataset}_normalization_{args.normalization}"
         args.exp_id = new_exp_id
     return args
 

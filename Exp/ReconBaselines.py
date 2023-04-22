@@ -19,8 +19,9 @@ import numpy as np
 
 from utils.metrics import get_summary_stats
 from utils.ema import EMAUpdater
-from utils.tools import plot_interval
+from utils.tools import plot_interval, get_best_static_threshold
 from utils.loss import soft_f1_loss, FocalLoss
+
 
 class MLP_Trainer(Trainer):
     def __init__(self, args, logger, train_loader):
@@ -35,10 +36,11 @@ class MLP_Trainer(Trainer):
             num_channels=args.num_channels,
             latent_space_size=args.model.latent_dim,
             gamma=args.gamma,
-            RevIN=args.RevIN,
+            normalization=args.normalization,
         ).to(self.args.device)
 
         self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=args.lr)
+        self.logger.info(f"\n{self.model}")
 
 
     def train(self):
@@ -82,10 +84,6 @@ class MLP_Trainer(Trainer):
         X = batch_data[0].to(self.args.device)
         B, L, C = X.shape
 
-        # update mean, var
-        if self.args.RevIN != "None":
-            self.model.revin._update_statistics(X)
-
         # recon
         Xhat = self.model(X)
 
@@ -117,7 +115,7 @@ class MLP_Tester(Tester):
             num_channels=args.num_channels,
             latent_space_size=args.model.latent_dim,
             gamma=args.gamma,
-            RevIN=args.RevIN,
+            normalization=args.normalization,
         ).to(self.args.device)
 
         self.load_trained_model()
@@ -159,13 +157,14 @@ class MLP_Tester(Tester):
             self.logger.info(f"{test_errors.shape}")
         else:
             self.logger.info("test_errors.pt file does not exist, calculating...")
-            test_errors = self.calculate_recon_errors(self.test_loader).mean(dim=2)  # (B, L, C) => (B, L)
+            test_errors = self.calculate_recon_errors(self.test_loader, save_outputs=True).mean(dim=2)  # (B, L, C) => (B, L)
             self.logger.info("saving test_errors.pt...")
             with open(test_error_pt_path, 'wb') as f:
                 torch.save(test_errors, f)
         torch.cuda.empty_cache()
 
         # test errors (T=B*L, C) and ground truth
+        self.train_errors = train_errors.reshape(-1).detach().cpu().numpy()
         self.test_errors = test_errors.reshape(-1).detach().cpu().numpy()
         self.gt = self.test_loader.dataset.y
 
@@ -173,11 +172,11 @@ class MLP_Tester(Tester):
         self.th_q95 = torch.quantile(train_errors, 0.95).item()
         self.th_q99 = torch.quantile(train_errors, 0.99).item()
         self.th_q100 = torch.max(train_errors).item()
-        self.th_best_static = self.get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_errors)
+        self.th_best_static = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_errors)
 
 
     @torch.no_grad()
-    def calculate_recon_errors(self, dataloader):
+    def calculate_recon_errors(self, dataloader, save_outputs=False):
         '''
         :return:  returns (B, L, C) recon loss tensor
         '''
@@ -188,13 +187,32 @@ class MLP_Tester(Tester):
             leave=True
         )
         recon_errors = []
+        Xs, Xhats = [], []
         for i, batch_data in enumerate(it):
             X = batch_data[0].to(self.args.device)
             B, L, C = X.shape
             Xhat = self.model(X)
+
+            if save_outputs:
+                Xs.append(X)
+                Xhats.append(Xhat)
+
             recon_error = F.mse_loss(Xhat, X, reduction='none')
             recon_errors.append(recon_error)
+
+        # save recon'd outputs
+        if save_outputs:
+            Xs = torch.cat(Xs, axis=0)
+            Xhats = torch.cat(Xhats, axis=0)
+            X_path = os.path.join(self.args.output_path, "Xs.pt")
+            Xhat_path = os.path.join(self.args.output_path, "Xhats_offline.pt")
+            with open(X_path, 'wb') as f:
+                torch.save(Xs, f)
+            with open(Xhat_path, 'wb') as f:
+                torch.save(Xhats, f)
+
         recon_errors = torch.cat(recon_errors, axis=0)
+
         return recon_errors
 
 
@@ -203,41 +221,29 @@ class MLP_Tester(Tester):
         gt = self.test_loader.dataset.y
 
         if mode == "offline":
-            result_df = self.offline_inference(cols=cols)
+            pred = self.offline(self.args.q)
+            result = get_summary_stats(gt, pred)
+
+        elif mode == "offline_all":
+            result_df = self.offline_all(
+                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
+            )
             self.logger.info(f"{mode} \n {result_df.to_string()}")
             return result_df
 
-        # supervised (label)
-        elif mode == "online_label_bce_seq":
-            pred = self.online_label(self.test_loader, self.th_q95, cls_loss="bce")
-            result = get_summary_stats(gt, pred)
-        elif mode == "online_label_focal_seq":
-            pred = self.online_label(self.test_loader, self.th_q95, cls_loss="focal")
-            result = get_summary_stats(gt, pred)
-        elif mode == "online_label_bce_joint":
-            pred = self.online_label_jointly(self.test_loader, self.th_q95, cls_loss="bce")
-            result = get_summary_stats(gt, pred)
-        elif mode == "online_label_focal_joint":
-            pred = self.online_label_jointly(self.test_loader, self.th_q95, cls_loss="focal")
+        elif mode == "online":
+            pred = self.online(self.test_loader, self.th_q95, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
 
-        # unsupervised (us)
-        elif mode == "online_us_bce_seq":
-            pred = self.online_us(self.test_loader, self.th_q95, cls_loss="bce")
-            result = get_summary_stats(gt, pred)
-        elif mode == "online_us_focal_seq":
-            pred = self.online_us(self.test_loader, self.th_q95, cls_loss="focal")
-            result = get_summary_stats(gt, pred)
-        elif mode == "online_us_bce_joint":
-            pred = self.online_us_jointly(self.test_loader, self.th_q95, cls_loss="bce")
-            result = get_summary_stats(gt, pred)
-        elif mode == "online_us_focal_joint":
-            pred = self.online_us_jointly(self.test_loader, self.th_q95, cls_loss="focal")
-            result = get_summary_stats(gt, pred)
+        elif mode == "online_all":
+            result_df = self.online_all(
+                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
+            )
+            self.logger.info(f"{mode} \n {result_df.to_string()}")
+            return result_df
 
-        # unsupervised + ARevIN
-        elif mode == "online_us_bce_seq_ARevIN":
-            pred = self.online_us(self.test_loader, self.th_q95, cls_loss="bce", revin="ARevIN")
+        elif mode == "online_ST":
+            pred = self.online_ST_inference(self.test_loader, self.th_q95, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
 
         wandb.log(result)
@@ -247,18 +253,24 @@ class MLP_Tester(Tester):
         return result_df
 
 
-    def offline_inference(self, cols):
+    def offline(self, q=0.95):
+        th = np.quantile(self.train_errors, q)
+        return (self.test_errors > th)
+
+
+    def offline_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
         result_df = pd.DataFrame(columns=cols)
 
-        q95_result = get_summary_stats(self.gt, self.test_errors > self.th_q95)
-        q99_result = get_summary_stats(self.gt, self.test_errors > self.th_q99)
-        q100_result = get_summary_stats(self.gt, self.test_errors > self.th_q100)
-        best_static_result = get_summary_stats(self.gt, self.test_errors > self.th_best_static)
+        # according to quantiles.
+        for q in np.arange(qStart, qEnd+qStep, qStep):
+            th = np.quantile(self.train_errors, q)
+            result = get_summary_stats(self.gt, self.test_errors > th)
+            result_df = result_df.append(pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns))
 
-        result_df = result_df.append(pd.DataFrame([q95_result], index=["Q95"], columns=result_df.columns))
-        result_df = result_df.append(pd.DataFrame([q99_result], index=["Q99"], columns=result_df.columns))
-        result_df = result_df.append(pd.DataFrame([q100_result], index=["Q100"], columns=result_df.columns))
-        result_df = result_df.append(pd.DataFrame([best_static_result], index=["BEST"], columns=result_df.columns))
+        # threshold with test data
+        best_result = get_summary_stats(self.gt, self.test_errors > self.th_best_static)
+        result_df = result_df.append(pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns))
+        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_{qStart}_{qEnd}_{qStep}.csv"))
 
         # plot results w/o TTA
         plt.figure(figsize=(20, 6))
@@ -274,8 +286,113 @@ class MLP_Tester(Tester):
         return result_df
 
 
-    def online_us(self, dataloader, init_thr, cls_loss="bce", revin="None"):
+    def online_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
+        result_df = pd.DataFrame(columns=cols)
+        for q in np.arange(qStart, qEnd+1e-07, qStep):
+            th = np.quantile(self.train_errors, min(q, qEnd))
+            pred = self.online(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            result = get_summary_stats(self.gt, pred)
+            self.logger.info(result)
+            result_df = result_df.append(pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns))
+        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_{qStart}_{qEnd}_{qStep}.csv"))
+        return result_df
+
+
+    def online(self, dataloader, init_thr, normalization="None"):
         self.load_trained_model() # reset
+
+        it = tqdm(
+            dataloader,
+            total=len(dataloader),
+            desc="inference",
+            leave=True
+        )
+
+        tau = init_thr
+        TT_optimizer = torch.optim.SGD([p for p in self.model.parameters()], lr=self.args.ttlr)
+
+        Xs, Xhats = [], []
+        preds = []
+        As, thrs = [], []
+
+        for i, batch_data in enumerate(it):
+            X = batch_data[0].to(self.args.device)
+            B, L, C = X.shape
+
+            # Update of test-time statistics.
+            if normalization == "SlowRevIN":
+                self.model.normalizer._update_statistics(X)
+
+            # inference
+            Xhat = self.model(X)
+            E = (Xhat-X)**2
+            A = E.mean(dim=2)
+            ytilde = (A > tau).float()
+            pred = ytilde
+
+            # log model outputs
+            Xs.append(X)
+            Xhats.append(Xhat.clone().detach())
+            As.append(A.clone().detach())
+            preds.append(pred.clone().detach())
+            thrs.append(tau)
+
+            # learn new-normals
+            TT_optimizer.zero_grad()
+            mask = (ytilde == 0)
+            recon_loss = (A * mask).mean()
+            recon_loss.backward()
+            TT_optimizer.step()
+
+
+        # outputs
+        Xs = torch.cat(Xs, axis=0).detach().cpu().numpy()
+        Xhats = torch.cat(Xhats, axis=0).detach().cpu().numpy()
+        anoscs = torch.cat(As, axis=0).reshape(-1).detach().cpu().numpy()
+        thrs = np.repeat(np.array(thrs), self.args.window_size * self.args.eval_batch_size)
+        preds = torch.cat(preds).reshape(-1).detach().cpu().numpy().astype(int)
+
+        # save plots
+        ## anomaly scores
+        if self.args.plot_anomaly_scores:
+            self.logger.info("Plotting anomaly scores...")
+            plt.figure(figsize=(20, 6), dpi=500)
+            plt.title(f"online_{self.args.dataset}_tau_{tau}")
+            plt.plot(self.test_errors, color="blue", label="anomaly score w/o online learning")
+            plt.plot(anoscs, color="green", label="anomaly score w/ online learning")
+            plt.plot(thrs, color="black", label="threshold")
+
+            plot_interval(plt, self.gt)
+            plot_interval(plt, preds, facecolor="gray", alpha=1)
+            plt.legend()
+            plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_wTTA_tau_{tau}.png"))
+            wandb.log({f"wTTA_tau_{tau}": wandb.Image(plt)})
+
+        ## reconstruction status
+        if self.args.plot_recon_status:
+            self.logger.info("Plotting reconstruction status...")
+
+            for c in range(self.args.num_channels):
+                B, L, C = Xhats.shape
+                title = f"{self.args.exp_id}_wTTA_recon_ch{c}"
+
+                plt.figure(figsize=(20, 6), dpi=500)
+                plt.title(f"{title}")
+                plt.plot(Xs[:, c], color="black", label="gt")
+                plt.plot(Xhats[:, :, c].reshape(-1), linewidth=0.5, color="green", label="reconed w/ online learning")
+                plt.legend()
+                plot_interval(plt, self.gt)
+                plt.savefig(os.path.join(self.args.plot_path, f"{title}.png"))
+                wandb.log({f"{title}": wandb.Image(plt)})
+
+        return preds
+
+
+    def online_ST_inference(self, dataloader, init_thr, normalization="SlowRevIN"):
+        self.load_trained_model() # reset
+        source_model = copy.deepcopy(self.model)
+        target_model = copy.deepcopy(self.model)
+        ema_updater = EMAUpdater(source_model, target_model, self.args.gamma)
 
         it = tqdm(
             dataloader,
@@ -286,10 +403,10 @@ class MLP_Tester(Tester):
 
         thr = torch.tensor(init_thr, requires_grad=True)
 
-        TT_optimizer = torch.optim.SGD([p for p in self.model.parameters()], lr=self.args.ttlr)
+        TT_optimizer = torch.optim.SGD([p for p in source_model.parameters()], lr=self.args.ttlr)
         TH_optimizer = torch.optim.SGD([thr], self.args.thlr)
 
-        loss_fn = torch.nn.BCELoss() if cls_loss == "bce" else FocalLoss()
+        loss_fn = torch.nn.BCELoss()
 
         Xs, Xhats = [], []
         preds = []
@@ -299,17 +416,21 @@ class MLP_Tester(Tester):
             X = batch_data[0].to(self.args.device)
             B, L, C = X.shape
 
-            # Revin Update
-            if revin != "None":
-                self.model.revin._update_statistics(X)
+            # Update of test-time statistics.
+            if normalization == "SlowRevIN":
+                source_model.revin._update_statistics(X)
+                target_model.revin._update_statistics(X)
+
+            # clip threshold value to init_thr.
             tau = torch.clamp(thr, min=init_thr)
 
-            # inference
-            Xhat = self.model(X)
-            E = F.mse_loss(Xhat, X, reduction='none')
-            A = E.mean(dim=2)
-            ytilde = (A > tau).float()
-            pred = ytilde
+            # target model inference
+            with torch.no_grad():
+                Xhat = target_model(X)
+                E = (Xhat - X) ** 2
+                A = E.mean(dim=2)
+                ytilde = (A > tau).float()
+                pred = (A > tau)
 
             # log model outputs
             Xs.append(X)
@@ -318,22 +439,27 @@ class MLP_Tester(Tester):
             preds.append(pred.clone().detach())
             thrs.append(tau.clone().detach().item())
 
+            # update threshold
+            TH_optimizer.zero_grad()
+            yhat = torch.sigmoid((A - tau))
+            cls_loss = loss_fn(yhat, ytilde)
+            cls_loss.backward()
+            TH_optimizer.step()
+
+            # source model training
+            Xhatp = source_model(X)
+            Ep = (Xhatp - X) ** 2
+            Ap = Ep.mean(dim=2)
+
             # learn new-normals
             TT_optimizer.zero_grad()
             mask = (ytilde == 0)
-            recon_loss = (A * mask).mean()
+            recon_loss = (Ap * mask).mean()
             recon_loss.backward()
             TT_optimizer.step()
 
-            # update threshold
-            TH_optimizer.zero_grad()
-            Xhat = self.model(X)
-            E = F.mse_loss(Xhat, X, reduction='none')
-            A = E.mean(dim=2)
-            yhat = torch.sigmoid((A - tau))
-            cls_loss = loss_fn(yhat, ytilde.float())
-            cls_loss.backward()
-            TH_optimizer.step()
+            # EMA update
+            ema_updater.update(1)
 
 
         # outputs
@@ -377,139 +503,4 @@ class MLP_Tester(Tester):
                 plt.savefig(os.path.join(self.args.plot_path, f"{title}.png"))
                 wandb.log({f"{title}": wandb.Image(plt)})
 
-        return preds
-
-
-    def online_us_jointly(self, dataloader, init_thr, cls_loss="bce"):
-        self.load_trained_model() # reset
-
-        it = tqdm(
-            dataloader,
-            total=len(dataloader),
-            desc="inference",
-            leave=True
-        )
-
-        thr = torch.tensor(init_thr, requires_grad=True)
-
-        TT_optimizer = torch.optim.SGD([thr]+[p for p in self.model.parameters()], lr=self.args.ttlr)
-
-        loss_fn = torch.nn.BCELoss() if cls_loss == "bce" else FocalLoss()
-
-        preds = []
-        for i, batch_data in enumerate(it):
-            X = batch_data[0].to(self.args.device)
-            B, L, C = X.shape
-
-            Xhat = self.model(X)
-            E = F.mse_loss(Xhat, X, reduction='none')
-            A = E.mean(dim=2)
-            ytilde = (A > thr)
-            pred = ytilde
-            preds.append(pred.clone().detach())
-
-            # learn new-normals and update threshold
-            TT_optimizer.zero_grad()
-            mask = (ytilde == 0)
-            yhat = torch.sigmoid((A - thr))
-            cls_loss = loss_fn(yhat, ytilde.float())
-            recon_loss = (A * mask).mean()
-            loss = recon_loss + self.args.cls_lambda * cls_loss
-            loss.backward()
-            TT_optimizer.step()
-
-        preds = torch.cat(preds).reshape(-1).detach().cpu().numpy()
-        return preds
-
-
-    def online_label(self, dataloader, init_thr, cls_loss="bce"):
-        self.load_trained_model() # reset
-
-        it = tqdm(
-            dataloader,
-            total=len(dataloader),
-            desc="inference",
-            leave=True
-        )
-
-        thr = torch.tensor(init_thr, requires_grad=True)
-
-        TT_optimizer = torch.optim.SGD([p for p in self.model.parameters()], lr=self.args.ttlr)
-        TH_optimizer = torch.optim.SGD([thr], self.args.thlr)
-
-        loss_fn = torch.nn.BCELoss() if cls_loss == "bce" else FocalLoss()
-
-        preds = []
-        for i, batch_data in enumerate(it):
-            X = batch_data[0].to(self.args.device)
-            y = batch_data[1].to(self.args.device)
-            B, L, C = X.shape
-
-            Xhat = self.model(X)
-            E = F.mse_loss(Xhat, X, reduction='none')
-            A = E.mean(dim=2)
-            pred = (A > thr)
-            preds.append(pred)
-
-            # learn new-normals
-            TT_optimizer.zero_grad()
-            mask = (y == 0)
-            recon_loss = (A * mask).mean()
-            recon_loss.backward()
-            TT_optimizer.step()
-
-            # update threshold
-            TH_optimizer.zero_grad()
-            Xhat = self.model(X)
-            E = F.mse_loss(Xhat, X, reduction='none')
-            A = E.mean(dim=2)
-            yhat = torch.sigmoid((A - thr))
-            cls_loss = loss_fn(yhat, y.float())
-            cls_loss.backward()
-            TH_optimizer.step()
-
-        preds = torch.cat(preds).reshape(-1).detach().cpu().numpy()
-        return preds
-
-
-    def online_label_jointly(self, dataloader, init_thr, cls_loss="bce"):
-        self.load_trained_model() # reset
-
-        it = tqdm(
-            dataloader,
-            total=len(dataloader),
-            desc="inference",
-            leave=True
-        )
-
-        thr = torch.tensor(init_thr, requires_grad=True)
-
-        TT_optimizer = torch.optim.SGD([thr]+[p for p in self.model.parameters()], lr=self.args.ttlr)
-        loss_fn = torch.nn.BCELoss() if cls_loss == "bce" else FocalLoss()
-
-        preds = []
-        for i, batch_data in enumerate(it):
-            X = batch_data[0].to(self.args.device)
-            y = batch_data[1].to(self.args.device)
-            B, L, C = X.shape
-
-            Xhat = self.model(X)
-            E = F.mse_loss(Xhat, X, reduction='none')
-            A = E.mean(dim=2)
-            pred = (A > thr)
-            preds.append(pred)
-
-            # learn new-normals and update threshold
-            TT_optimizer.zero_grad()
-
-            mask = (y == 0)
-            recon_loss = (A * mask).mean()
-            yhat = torch.sigmoid((A - thr))
-            cls_loss = loss_fn(yhat, y.float())
-
-            loss = recon_loss + self.args.cls_lambda * cls_loss
-            loss.backward()
-            TT_optimizer.step()
-
-        preds = torch.cat(preds).reshape(-1).detach().cpu().numpy()
         return preds

@@ -3,6 +3,8 @@ import numpy as np
 import random
 import pandas as pd
 from torch.autograd import Variable
+from sklearn.metrics import roc_curve
+
 
 def SEED_everything(SEED):
     torch.manual_seed(SEED)
@@ -51,6 +53,26 @@ def plot_interval(ax, interval, facecolor="red", alpha=0.5):
 def set_requires_grad(model, val):
     for p in model.parameters():
         p.requires_grad = val
+
+def get_best_static_threshold(gt, anomaly_scores):
+    '''
+    Find the threshold that maximizes f1-score
+    '''
+    P, N = (gt == 1).sum(), (gt == 0).sum()
+    fpr, tpr, thresholds = roc_curve(gt, anomaly_scores)
+
+    fp = np.array(fpr * N, dtype=int)
+    tn = np.array(N - fp, dtype=int)
+    tp = np.array(tpr * P, dtype=int)
+    fn = np.array(P - tp, dtype=int)
+
+    eps = 1e-6
+    precision = tp / np.maximum(tp + fp, eps)
+    recall = tp / np.maximum(tp + fn, eps)
+    f1 = 2 * (precision * recall) / np.maximum(precision + recall, eps)
+    idx = np.argmax(f1)
+    best_threshold = thresholds[idx]
+    return best_threshold
 
 
 if __name__ == "__main__":

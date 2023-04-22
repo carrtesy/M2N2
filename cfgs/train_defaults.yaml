@@ -22,11 +22,8 @@ output_path: ./outputs
 plot_path: ./plots
 result_path: ./results
 
-# Thresholding
-thresholding: oracle
-
-# RevIN
-RevIN: "None"
+# normalization
+normalization: "None"
 gamma: 0.99
 
 # Model-specific arguments

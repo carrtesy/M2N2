@@ -14,12 +14,17 @@ class EMAUpdater:
         set_requires_grad(self.target_model, False)
         self._update_moving_average(0.0)
 
+
     def _update_moving_average(self, moving_average_decay):
+        # update parameters with requires_grad only.
         with torch.no_grad():
             for target_params, source_params in zip(self.target_model.parameters(), self.source_model.parameters()):
-                target_params.copy_(source_params.lerp(target_params, moving_average_decay))
+                if source_params.requires_grad:
+                    target_params.copy_(source_params.lerp(target_params, moving_average_decay))
             for target_buffers, source_buffers in zip(self.target_model.buffers(), self.source_model.buffers()):
-                target_buffers.copy_(source_buffers)
+                if source_params.requires_grad:
+                    target_buffers.copy_(source_buffers)
+
 
     def update(self, iter_count):
         if iter_count < self.start_iter:

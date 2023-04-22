@@ -1,17 +1,14 @@
 # Exp ID
 exp_id: default
 infer_options: [
-  "offline",
-  #"online_us_bce_seq",
-  "online_us_bce_seq_ARevIN"
-  #"online_us_focal_seq",
-  #"online_us_bce_joint",
-  #"online_us_focal_joint",
-  #"online_label_bce_seq",
-  #"online_label_focal_seq",
-  #"online_label_bce_joint",
-  #"online_label_focal_joint",
+  "offline_all",
+  #"online_ST"
 ]
+
+# offline range
+qStart: 0.90
+qEnd: 1.00
+qStep: 0.01
 
 # Data Preprocessing
 dataset: NeurIPS-TS-MUL
@@ -33,8 +30,8 @@ cls_lambda: 1
 ttlr: 1e-03
 thlr: 1e-03
 
-# others
-RevIN: "None"
+# normalization
+normalization: "None"
 gamma: 0.99
 
 # Saving Configs & Paths
