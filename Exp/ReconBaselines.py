@@ -231,6 +231,13 @@ class MLP_Tester(Tester):
             self.logger.info(f"{mode} \n {result_df.to_string()}")
             return result_df
 
+        elif mode == "offline_wSR_all":
+            result_df = self.offline_with_SlowRevIN_all(
+                cols=cols, qStart=self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
+            )
+            self.logger.info(f"{mode} \n {result_df.to_string()}")
+            return result_df
+
         elif mode == "online":
             pred = self.online(self.test_loader, self.th_q95, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
@@ -283,6 +290,54 @@ class MLP_Tester(Tester):
         plot_interval(plt, self.gt)
         plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_woTTA.png"))
         wandb.log({"woTTA": wandb.Image(plt)})
+        return result_df
+
+
+    def offline_with_SlowRevIN(self, dataloader, init_thr, normalization="SlowRevIN"):
+        self.load_trained_model()  # reset
+
+        it = tqdm(
+            dataloader,
+            total=len(dataloader),
+            desc="inference",
+            leave=True
+        )
+
+        tau = init_thr
+
+        preds = []
+        for i, batch_data in enumerate(it):
+            X = batch_data[0].to(self.args.device)
+            B, L, C = X.shape
+
+            # Update of test-time statistics.
+            if normalization == "SlowRevIN":
+                self.model.normalizer._update_statistics(X)
+
+            # inference
+            Xhat = self.model(X)
+            E = (Xhat - X) ** 2
+            A = E.mean(dim=2)
+            ytilde = (A > tau).float()
+            pred = ytilde
+
+            # log model outputs
+            preds.append(pred.clone().detach())
+
+        # outputs
+        preds = torch.cat(preds).reshape(-1).detach().cpu().numpy().astype(int)
+        return preds
+
+
+    def offline_with_SlowRevIN_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
+        result_df = pd.DataFrame(columns=cols)
+        for q in np.arange(qStart, qEnd + 1e-07, qStep):
+            th = np.quantile(self.train_errors, min(q, qEnd))
+            pred = self.offline_with_SlowRevIN(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            result = get_summary_stats(self.gt, pred)
+            self.logger.info(result)
+            result_df = result_df.append(pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns))
+        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_wSR_{qStart}_{qEnd}_{qStep}.csv"))
         return result_df
 
 
