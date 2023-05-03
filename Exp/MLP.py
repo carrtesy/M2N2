@@ -11,6 +11,7 @@ from Exp.Tester import Tester
 
 # models
 from models.MLP import MLP
+from models.LSTMEncDec import LSTMEncDec
 
 # others
 import torch
@@ -102,7 +103,6 @@ class MLP_Trainer(Trainer):
         return out
 
 
-
 class MLP_Tester(Tester):
     def __init__(self, args, logger, train_loader, test_loader):
         super(MLP_Tester, self).__init__(
@@ -186,6 +186,13 @@ class MLP_Tester(Tester):
 
 
     @torch.no_grad()
+    def calculate_anomaly_scores(self, dataloader):
+        recon_errors = self.calculate_recon_errors(dataloader) # B, L, C
+        anomaly_scores = recon_errors.mean(dim=2).reshape(-1) # B, L -> (T=B*L, )
+        return anomaly_scores
+
+
+    @torch.no_grad()
     def calculate_recon_errors(self, dataloader, save_outputs=False):
         '''
         :return:  returns (B, L, C) recon loss tensor
@@ -224,125 +231,6 @@ class MLP_Tester(Tester):
         recon_errors = torch.cat(recon_errors, axis=0)
 
         return recon_errors
-
-
-    def infer(self, mode, cols):
-        result_df = pd.DataFrame(columns=cols)
-        gt = self.test_loader.dataset.y
-
-        if mode == "offline":
-            pred = self.offline(self.args.thresholding)
-            result = get_summary_stats(gt, pred)
-            result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
-            self.logger.info(f"{mode}-{self.args.thresholding} \n {result_df.to_string()}")
-            return result_df
-
-        elif mode == "offline_all":
-            result_df = self.offline_all(
-                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
-            self.logger.info(f"{mode} \n {result_df.to_string()}")
-            return result_df
-
-        elif mode == "offline_wSR_all":
-            result_df = self.offline_with_SlowRevIN_all(
-                cols=cols, qStart=self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
-            self.logger.info(f"{mode} \n {result_df.to_string()}")
-            return result_df
-
-        elif mode == "online":
-            th = self.args.thresholding
-            if th[0] == "q":
-                th = float(th[1:]) / 100
-                tau = np.quantile(self.train_errors, th)
-            elif th == "otsu":
-                tau = self.th_otsu
-            elif th == "pot":
-                tau = self.th_pot
-            elif th == "tbest":
-                tau = self.th_best_static
-
-            pred = self.online(self.test_loader, tau, normalization=self.args.normalization)
-            result = get_summary_stats(gt, pred)
-            result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
-            result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_{th}.csv"))
-            self.logger.info(f"{mode} \n {result_df.to_string()}")
-
-            return result_df
-
-        elif mode == "online_all":
-            result_df = self.online_all(
-                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
-            self.logger.info(f"{mode} \n {result_df.to_string()}")
-            return result_df
-
-        elif mode == "online_label_all":
-            result_df = self.online_label_all(
-                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
-            self.logger.info(f"{mode} \n {result_df.to_string()}")
-            return result_df
-
-
-    def offline(self, th="q95.1"):
-        if th[0] == "q":
-            th = float(th[1:]) / 100
-            tau = np.quantile(self.train_errors, th)
-        elif th == "otsu":
-            tau = self.th_otsu
-        elif th == "pot":
-            tau = self.th_pot
-        elif th == "tbest":
-            tau = self.th_best_static
-
-        # plot results w/o TTA
-        plt.figure(figsize=(20, 6))
-        plt.plot(self.test_errors, color="blue", label="anomaly score w/o online learning")
-        plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
-        plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
-        plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
-        plt.axhline(self.th_best_static, color="C4", label="threshold w/ test data")
-        plt.axhline(self.th_otsu, color="C5", label="otsu threshold")
-        plt.axhline(self.th_pot, color="C6", label="pot+otsu threshold")
-        plot_interval(plt, self.gt)
-        plt.legend()
-        plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_offline.png"))
-        wandb.log({f"{self.args.exp_id}_offline": wandb.Image(plt)})
-
-        return (self.test_errors > tau)
-
-
-    def offline_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
-        result_df = pd.DataFrame(columns=cols)
-
-        # according to quantiles.
-        for q in np.arange(qStart, qEnd + qStep, qStep):
-            q = min(q, qEnd)
-            th = np.quantile(self.train_errors, q)
-            result = get_summary_stats(self.gt, self.test_errors > th)
-            result_df = pd.concat([result_df, pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns)])
-            result_df.at[f"Q{q*100:.3f}", "tau"] = th
-
-        # threshold with test data
-        best_result = get_summary_stats(self.gt, self.test_errors > self.th_best_static)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
-        result_df.at[f"Qbest", "tau"] = self.th_best_static
-        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_{qStart}_{qEnd}_{qStep}.csv"))
-
-        # plot results w/o TTA
-        plt.figure(figsize=(20, 6))
-        plt.plot(self.test_errors, color="blue", label="anomaly score w/o online learning")
-        plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
-        plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
-        plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
-        plt.axhline(self.th_best_static, color="C4", label="threshold w/ test data")
-        plt.legend()
-        plot_interval(plt, self.gt)
-        plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_woTTA.png"))
-        wandb.log({"woTTA": wandb.Image(plt)})
-        return result_df
 
 
     def offline_with_SlowRevIN(self, dataloader, init_thr, normalization="SlowRevIN"):

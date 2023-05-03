@@ -36,9 +36,12 @@ from utils.tools import SEED_everything
 import warnings
 import os
 from data.load_data import DataFactory
-#from Exp.SklearnBaselines import *
-from Exp.ReconBaselines import *
-from Exp.Baselines import AnomalyTransformer_Tester
+
+from Exp.MLP import MLP_Tester
+from Exp.LSTMEncDec import LSTMEncDec_Tester
+from Exp.AnomalyTransformer import AnomalyTransformer_Tester
+
+import pandas as pd
 
 warnings.filterwarnings("ignore")
 
@@ -72,6 +75,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Loading pre-trained {args.model.name} model...")
     Testers = {
         "MLP": MLP_Tester,
+        "LSTMEncDec": LSTMEncDec_Tester,
         "AnomalyTransformer": AnomalyTransformer_Tester,
     }
 

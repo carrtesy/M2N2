@@ -16,7 +16,7 @@ class Trainer:
 
 
     def train(self):
-        pass
+        raise NotImplementedError()
 
 
     def checkpoint(self, filepath):

@@ -36,8 +36,9 @@ from utils.tools import SEED_everything
 import warnings
 import os
 from data.load_data import DataFactory
-from Exp.ReconBaselines import MLP_Trainer, MLP_Tester
-from Exp.Baselines import AnomalyTransformer_Trainer
+from Exp.MLP import MLP_Trainer
+from Exp.LSTMEncDec import LSTMEncDec_Trainer
+from Exp.AnomalyTransformer import AnomalyTransformer_Trainer
 
 warnings.filterwarnings("ignore")
 
@@ -71,6 +72,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Preparing {args.model.name} Trainer...")
     Trainers = {
         "MLP": MLP_Trainer,
+        "LSTMEncDec": LSTMEncDec_Trainer,
         "AnomalyTransformer": AnomalyTransformer_Trainer,
     }
 
