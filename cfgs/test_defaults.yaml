@@ -5,6 +5,10 @@ infer_options: [
   #"online_ST"
 ]
 
+# thresholding
+thresholding: None
+tau_beta: 0.99
+
 # offline range
 qStart: 0.90
 qEnd: 1.00
@@ -15,7 +19,7 @@ dataset: NeurIPS-TS-MUL
 batch_size: 64
 eval_batch_size: 1
 window_size: 12
-stride: 1
+stride: 12
 eval_stride: 12
 scaler: std
 load_previous_error: True
@@ -25,10 +29,7 @@ lr: 1e-03
 epochs: 30
 
 # test-time Hyperparameters
-TT_loss: bce
-cls_lambda: 1
 ttlr: 1e-03
-thlr: 1e-03
 
 # normalization
 normalization: "None"

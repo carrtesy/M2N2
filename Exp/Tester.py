@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pickle
 from utils.metrics import get_summary_stats
 from sklearn.metrics import roc_curve
+import os
 
 matplotlib.rcParams['agg.path.chunksize'] = 10000
 
@@ -25,6 +26,7 @@ class Tester:
         self.test_loader = test_loader
 
 
+
     def calculate_recon_errors(self, dataloader):
         pass
 
@@ -38,6 +40,10 @@ class Tester:
         self.logger.info(f"loading: {filepath} @Trainer - torch.load_state_dict")
         self.model.load_state_dict(torch.load(filepath))
         self.model.to(self.args.device)
+
+
+    def load_trained_model(self):
+        self.load(os.path.join(self.args.checkpoint_path, f"best.pth"))
 
 
     @staticmethod

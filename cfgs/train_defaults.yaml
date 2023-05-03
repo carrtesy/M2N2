@@ -6,7 +6,7 @@ dataset: SWaT
 batch_size: 64
 eval_batch_size: 64
 window_size: 12
-stride: 1
+stride: 12
 eval_stride: 12
 scaler: std
 

@@ -21,6 +21,8 @@ from utils.metrics import get_summary_stats
 from utils.ema import EMAUpdater
 from utils.tools import plot_interval, get_best_static_threshold
 from utils.loss import soft_f1_loss, FocalLoss
+from thresholding.otsu import otsu_threshold
+from thresholding.pot import pot
 
 
 class MLP_Trainer(Trainer):
@@ -122,10 +124,6 @@ class MLP_Tester(Tester):
         self.prepare_stats()
 
 
-    def load_trained_model(self):
-        self.load(os.path.join(self.args.checkpoint_path, f"best.pth"))
-
-
     def prepare_stats(self):
         '''
         prepare 95, 99, 100 threshold of train errors.
@@ -169,10 +167,22 @@ class MLP_Tester(Tester):
         self.gt = self.test_loader.dataset.y
 
         # thresholds
-        self.th_q95 = torch.quantile(train_errors, 0.95).item()
-        self.th_q99 = torch.quantile(train_errors, 0.99).item()
-        self.th_q100 = torch.max(train_errors).item()
+        ## quantile-based
+        self.th_q95 = np.quantile(self.train_errors, 0.95)
+        self.th_q99 = np.quantile(self.train_errors, 0.99)
+        self.th_q100 = np.quantile(self.train_errors, 1.00)
+
+        ## with test data
         self.th_best_static = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_errors)
+
+
+        if self.args.thresholding in ["otsu", "pot"]:
+            ## otsu
+            self.th_otsu = otsu_threshold(self.train_errors)
+
+            ## pot + otsu
+            risk = (self.train_errors>self.th_otsu).sum()/len(self.train_errors)
+            self.th_pot, _ = pot(self.train_errors, risk, init_level=self.args.tau_beta)
 
 
     @torch.no_grad()
@@ -221,8 +231,11 @@ class MLP_Tester(Tester):
         gt = self.test_loader.dataset.y
 
         if mode == "offline":
-            pred = self.offline(self.args.q)
+            pred = self.offline(self.args.thresholding)
             result = get_summary_stats(gt, pred)
+            result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
+            self.logger.info(f"{mode}-{self.args.thresholding} \n {result_df.to_string()}")
+            return result_df
 
         elif mode == "offline_all":
             result_df = self.offline_all(
@@ -239,8 +252,24 @@ class MLP_Tester(Tester):
             return result_df
 
         elif mode == "online":
-            pred = self.online(self.test_loader, self.th_q95, normalization=self.args.normalization)
+            th = self.args.thresholding
+            if th[0] == "q":
+                th = float(th[1:]) / 100
+                tau = np.quantile(self.train_errors, th)
+            elif th == "otsu":
+                tau = self.th_otsu
+            elif th == "pot":
+                tau = self.th_pot
+            elif th == "tbest":
+                tau = self.th_best_static
+
+            pred = self.online(self.test_loader, tau, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
+            result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
+            result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_{th}.csv"))
+            self.logger.info(f"{mode} \n {result_df.to_string()}")
+
+            return result_df
 
         elif mode == "online_all":
             result_df = self.online_all(
@@ -249,34 +278,57 @@ class MLP_Tester(Tester):
             self.logger.info(f"{mode} \n {result_df.to_string()}")
             return result_df
 
-        elif mode == "online_ST":
-            pred = self.online_ST_inference(self.test_loader, self.th_q95, normalization=self.args.normalization)
-            result = get_summary_stats(gt, pred)
-
-        wandb.log(result)
-        result = pd.DataFrame([result], index=[mode], columns=result_df.columns)
-        self.logger.info(f"{mode} \n {result.to_string()}")
-        result_df = result_df.append(result)
-        return result_df
+        elif mode == "online_label_all":
+            result_df = self.online_label_all(
+                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
+            )
+            self.logger.info(f"{mode} \n {result_df.to_string()}")
+            return result_df
 
 
-    def offline(self, q=0.95):
-        th = np.quantile(self.train_errors, q)
-        return (self.test_errors > th)
+    def offline(self, th="q95.1"):
+        if th[0] == "q":
+            th = float(th[1:]) / 100
+            tau = np.quantile(self.train_errors, th)
+        elif th == "otsu":
+            tau = self.th_otsu
+        elif th == "pot":
+            tau = self.th_pot
+        elif th == "tbest":
+            tau = self.th_best_static
+
+        # plot results w/o TTA
+        plt.figure(figsize=(20, 6))
+        plt.plot(self.test_errors, color="blue", label="anomaly score w/o online learning")
+        plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
+        plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
+        plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
+        plt.axhline(self.th_best_static, color="C4", label="threshold w/ test data")
+        plt.axhline(self.th_otsu, color="C5", label="otsu threshold")
+        plt.axhline(self.th_pot, color="C6", label="pot+otsu threshold")
+        plot_interval(plt, self.gt)
+        plt.legend()
+        plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_offline.png"))
+        wandb.log({f"{self.args.exp_id}_offline": wandb.Image(plt)})
+
+        return (self.test_errors > tau)
 
 
     def offline_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
         result_df = pd.DataFrame(columns=cols)
 
         # according to quantiles.
-        for q in np.arange(qStart, qEnd+qStep, qStep):
+        for q in np.arange(qStart, qEnd + qStep, qStep):
+            q = min(q, qEnd)
             th = np.quantile(self.train_errors, q)
             result = get_summary_stats(self.gt, self.test_errors > th)
-            result_df = result_df.append(pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns))
+            result_df = pd.concat([result_df, pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns)])
+            result_df.at[f"Q{q*100:.3f}", "tau"] = th
 
         # threshold with test data
         best_result = get_summary_stats(self.gt, self.test_errors > self.th_best_static)
-        result_df = result_df.append(pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns))
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
+        result_df.at[f"Qbest", "tau"] = self.th_best_static
         result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_{qStart}_{qEnd}_{qStep}.csv"))
 
         # plot results w/o TTA
@@ -336,19 +388,38 @@ class MLP_Tester(Tester):
             pred = self.offline_with_SlowRevIN(self.test_loader, init_thr=th, normalization=self.args.normalization)
             result = get_summary_stats(self.gt, pred)
             self.logger.info(result)
-            result_df = result_df.append(pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns))
+            result_df = pd.concat(
+                [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
+            result_df.at[f"Q{q * 100:.3f}", "tau"] = th
+
+        pred = self.offline_with_SlowRevIN(self.test_loader, init_thr=self.th_best_static, normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
+        result_df.at[f"Qbest", "tau"] = self.th_best_static
         result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_wSR_{qStart}_{qEnd}_{qStep}.csv"))
+
         return result_df
 
 
     def online_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
         result_df = pd.DataFrame(columns=cols)
-        for q in np.arange(qStart, qEnd+1e-07, qStep):
-            th = np.quantile(self.train_errors, min(q, qEnd))
+        for q in np.arange(qStart, qEnd + qStep, qStep):
+            q = min(q, qEnd)
+            th = np.quantile(self.train_errors, q)
             pred = self.online(self.test_loader, init_thr=th, normalization=self.args.normalization)
             result = get_summary_stats(self.gt, pred)
             self.logger.info(result)
-            result_df = result_df.append(pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns))
+            result_df = pd.concat(
+                [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
+            result_df.at[f"Q{q * 100:.3f}", "tau"] = th
+
+
+        pred = self.online(self.test_loader, init_thr=self.th_best_static,
+                                           normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
+        result_df.at[f"Qbest", "tau"] = self.th_best_static
+
         result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_{qStart}_{qEnd}_{qStep}.csv"))
         return result_df
 
@@ -443,11 +514,31 @@ class MLP_Tester(Tester):
         return preds
 
 
-    def online_ST_inference(self, dataloader, init_thr, normalization="SlowRevIN"):
+    def online_label_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
+        result_df = pd.DataFrame(columns=cols)
+        for q in np.arange(qStart, qEnd + qStep, qStep):
+            q = min(q, qEnd)
+            th = np.quantile(self.train_errors, q)
+            pred = self.online_label(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            result = get_summary_stats(self.gt, pred)
+            self.logger.info(result)
+
+            result_df = pd.concat(
+                [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
+            result_df.at[f"Q{q * 100:.3f}", "tau"] = th
+
+        pred = self.online_label(self.test_loader, init_thr=self.th_best_static,
+                           normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
+        result_df.at[f"Qbest", "tau"] = self.th_best_static
+
+        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_label_{qStart}_{qEnd}_{qStep}.csv"))
+        return result_df
+
+
+    def online_label(self, dataloader, init_thr, normalization="None"):
         self.load_trained_model() # reset
-        source_model = copy.deepcopy(self.model)
-        target_model = copy.deepcopy(self.model)
-        ema_updater = EMAUpdater(source_model, target_model, self.args.gamma)
 
         it = tqdm(
             dataloader,
@@ -456,12 +547,8 @@ class MLP_Tester(Tester):
             leave=True
         )
 
-        thr = torch.tensor(init_thr, requires_grad=True)
-
-        TT_optimizer = torch.optim.SGD([p for p in source_model.parameters()], lr=self.args.ttlr)
-        TH_optimizer = torch.optim.SGD([thr], self.args.thlr)
-
-        loss_fn = torch.nn.BCELoss()
+        tau = init_thr
+        TT_optimizer = torch.optim.SGD([p for p in self.model.parameters()], lr=self.args.ttlr)
 
         Xs, Xhats = [], []
         preds = []
@@ -469,52 +556,33 @@ class MLP_Tester(Tester):
 
         for i, batch_data in enumerate(it):
             X = batch_data[0].to(self.args.device)
+            y = batch_data[1].to(self.args.device)
             B, L, C = X.shape
 
             # Update of test-time statistics.
             if normalization == "SlowRevIN":
-                source_model.revin._update_statistics(X)
-                target_model.revin._update_statistics(X)
+                self.model.normalizer._update_statistics(X)
 
-            # clip threshold value to init_thr.
-            tau = torch.clamp(thr, min=init_thr)
-
-            # target model inference
-            with torch.no_grad():
-                Xhat = target_model(X)
-                E = (Xhat - X) ** 2
-                A = E.mean(dim=2)
-                ytilde = (A > tau).float()
-                pred = (A > tau)
+            # inference
+            Xhat = self.model(X)
+            E = (Xhat-X)**2
+            A = E.mean(dim=2)
+            ytilde = (A > tau).float()
+            pred = ytilde
 
             # log model outputs
             Xs.append(X)
             Xhats.append(Xhat.clone().detach())
             As.append(A.clone().detach())
             preds.append(pred.clone().detach())
-            thrs.append(tau.clone().detach().item())
-
-            # update threshold
-            TH_optimizer.zero_grad()
-            yhat = torch.sigmoid((A - tau))
-            cls_loss = loss_fn(yhat, ytilde)
-            cls_loss.backward()
-            TH_optimizer.step()
-
-            # source model training
-            Xhatp = source_model(X)
-            Ep = (Xhatp - X) ** 2
-            Ap = Ep.mean(dim=2)
+            thrs.append(tau)
 
             # learn new-normals
             TT_optimizer.zero_grad()
-            mask = (ytilde == 0)
-            recon_loss = (Ap * mask).mean()
+            mask = (y == 0)
+            recon_loss = (A * mask).mean()
             recon_loss.backward()
             TT_optimizer.step()
-
-            # EMA update
-            ema_updater.update(1)
 
 
         # outputs
@@ -529,17 +597,16 @@ class MLP_Tester(Tester):
         if self.args.plot_anomaly_scores:
             self.logger.info("Plotting anomaly scores...")
             plt.figure(figsize=(20, 6), dpi=500)
-            plt.title(f"online_us_bce_{self.args.dataset}")
+            plt.title(f"online_{self.args.dataset}_tau_{tau}")
             plt.plot(self.test_errors, color="blue", label="anomaly score w/o online learning")
             plt.plot(anoscs, color="green", label="anomaly score w/ online learning")
-            plt.axhline(self.th_q95, color="purple", label="train 95% threshold")
-            plt.plot(thrs, color="black", label="dynamic threshold")
+            plt.plot(thrs, color="black", label="threshold")
 
             plot_interval(plt, self.gt)
             plot_interval(plt, preds, facecolor="gray", alpha=1)
             plt.legend()
-            plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_wTTA.png"))
-            wandb.log({"wTTA": wandb.Image(plt)})
+            plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_wTTA_label_tau_{tau}.png"))
+            wandb.log({f"wTTA_tau_{tau}": wandb.Image(plt)})
 
         ## reconstruction status
         if self.args.plot_recon_status:
@@ -547,7 +614,7 @@ class MLP_Tester(Tester):
 
             for c in range(self.args.num_channels):
                 B, L, C = Xhats.shape
-                title = f"{self.args.exp_id}_wTTA_recon_ch{c}"
+                title = f"{self.args.exp_id}_wTTA_label_recon_ch{c}"
 
                 plt.figure(figsize=(20, 6), dpi=500)
                 plt.title(f"{title}")

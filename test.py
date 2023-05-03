@@ -38,7 +38,7 @@ import os
 from data.load_data import DataFactory
 #from Exp.SklearnBaselines import *
 from Exp.ReconBaselines import *
-#from Exp.Baselines import *
+from Exp.Baselines import AnomalyTransformer_Tester
 
 warnings.filterwarnings("ignore")
 
@@ -72,6 +72,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Loading pre-trained {args.model.name} model...")
     Testers = {
         "MLP": MLP_Tester,
+        "AnomalyTransformer": AnomalyTransformer_Tester,
     }
 
     tester = Testers[args.model.name](
@@ -82,12 +83,12 @@ def main(cfg: DictConfig) -> None:
     )
 
     # infer
-    cols = ["Accuracy", "Precision", "Recall", "F1", "tn", "fp", "fn", "tp"]
+    cols = ["tau", "Accuracy", "Precision", "Recall", "F1", "tn", "fp", "fn", "tp"]
     cols += ["Accuracy_PA", "Precision_PA", "Recall_PA", "F1_PA", "tn_PA", "fp_PA", "fn_PA", "tp_PA"]
     result_df = pd.DataFrame([], columns=cols)
     for option in args.infer_options:
         result = tester.infer(mode=option, cols=cols)
-        result_df = result_df.append(result)
+        result_df = pd.concat([result_df, result])
 
     logger.info(f"\n{result_df.to_string()}")
 

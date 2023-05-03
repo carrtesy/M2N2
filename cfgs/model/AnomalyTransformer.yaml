@@ -1,0 +1,5 @@
+name: AnomalyTransformer
+anomaly_ratio: 4.00
+k: 3
+temperature: 50
+e_layers: 3

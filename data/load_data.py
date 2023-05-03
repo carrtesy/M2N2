@@ -3,6 +3,7 @@ import numpy as np
 import os
 import pickle
 import matplotlib.pyplot as plt
+import ast
 
 from torch.utils.data import DataLoader, Dataset
 from sklearn import preprocessing
@@ -19,13 +20,16 @@ class DataFactory:
             "NeurIPS-TS-MUL": self.load_NeurIPS_TS_MUL,
             "SWaT": self.load_SWaT,
             "WADI": self.load_WADI,
-            "SMD": self.load_SMD,
             "PSM": self.load_PSM,
-            "SMAP": self.load_SMAP,
-            "MSL": self.load_MSL,
+            "SMAP_G-1": self.load_SMAP,
+            "SMAP_D-13": self.load_SMAP,
+            "SMD_machine-1-4": self.load_SMD,
+            "MSL_P-15": self.load_MSL,
+            "yahoo_20": self.load_yahoo,
             "Pump": self.load_Pump,
             "CreditCard": self.load_CreditCard,
         }
+
         self.datasets = {
             "toyUSW": TSADStandardDataset,
             "NeurIPS-TS-UNI": TSADStandardDataset,
@@ -34,8 +38,11 @@ class DataFactory:
             "WADI": TSADStandardDataset,
             "SMD": TSADStandardDataset,
             "PSM": TSADStandardDataset,
-            "SMAP": TSADStandardDataset,
-            "MSL": TSADStandardDataset,
+            "SMAP_G-1": TSADStandardDataset,
+            "SMAP_D-13": TSADStandardDataset,
+            "SMD_machine-1-4": TSADStandardDataset,
+            "MSL_P-15": TSADStandardDataset,
+            "yahoo_20": TSADStandardDataset,
             "Pump": TSADStandardDataset,
             "CreditCard": TSADStandardDataset,
         }
@@ -89,7 +96,20 @@ class DataFactory:
 
 
     def load(self):
-        return self.dataset_fn_dict[self.args.dataset]()
+        if "SMAP" in self.args.dataset:
+            data, chan_id = self.args.dataset.split("_")
+            return self.dataset_fn_dict[self.args.dataset](chan_id)
+        elif "MSL" in self.args.dataset:
+            data, chan_id = self.args.dataset.split("_")
+            return self.dataset_fn_dict[self.args.dataset](chan_id)
+        elif "SMD" in self.args.dataset:
+            data, machine_id = self.args.dataset.split("_")
+            return self.dataset_fn_dict[self.args.dataset](machine_id)
+        elif "yahoo" in self.args.dataset:
+            data, idx = self.args.dataset.split("_")
+            return self.dataset_fn_dict[self.args.dataset](idx)
+        else:
+            return self.dataset_fn_dict[self.args.dataset]()
 
 
     def prepare(self, train_X, train_y, test_X, test_y,
@@ -265,27 +285,6 @@ class DataFactory:
 
 
     @staticmethod
-    def load_SMD():
-        base_dir = "data/SMD"
-        with open(os.path.join(base_dir, "SMD_train.pkl"), 'rb') as f:
-            train_X = pickle.load(f)
-        T, C = train_X.shape
-        train_y = np.zeros((T,), dtype=int)
-        with open(os.path.join(base_dir, "SMD_test.pkl"), 'rb') as f:
-            test_X = pickle.load(f)
-        with open(os.path.join(base_dir, "SMD_test_label.pkl"), 'rb') as f:
-            test_y = pickle.load(f)
-
-        train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
-        train_y, test_y = train_y.astype(int), test_y.astype(int)
-
-        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
-        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
-
-        return train_X, train_y, test_X, test_y
-
-
-    @staticmethod
     def load_PSM():
         PSM_PATH = os.path.join("data", "PSM")
 
@@ -359,16 +358,72 @@ class DataFactory:
 
 
     @staticmethod
-    def load_SMAP(home_dir="."):
+    def load_SMAP(chan_id):
         base_dir = "data/SMAP"
-        with open(os.path.join(home_dir, base_dir, "SMAP_train.pkl"), 'rb') as f:
-            train_X = pickle.load(f)
+        label = pd.read_csv(os.path.join(base_dir, "labeled_anomalies.csv"))
+        SMAP_label = label[label["spacecraft"] == "SMAP"].sort_values(by="chan_id")
+
+        train_X = np.load(os.path.join(base_dir, "train", f"{chan_id}.npy"))
         T, C = train_X.shape
         train_y = np.zeros((T,), dtype=int)
-        with open(os.path.join(home_dir, base_dir, "SMAP_test.pkl"), 'rb') as f:
-            test_X = pickle.load(f)
-        with open(os.path.join(home_dir, base_dir, "SMAP_test_label.pkl"), 'rb') as f:
-            test_y = pickle.load(f)
+
+        test_X = np.load(os.path.join(base_dir, "test", f"{chan_id}.npy"))
+        T, C = test_X.shape
+        anos = ast.literal_eval(SMAP_label[SMAP_label["chan_id"] == chan_id]["anomaly_sequences"].values[0])
+        test_y = np.zeros((T,), dtype=int)
+        for ano in anos:
+            s, e = ano
+            test_y[s:e] = 1
+
+        train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
+        train_y, test_y = train_y.astype(int), test_y.astype(int)
+
+        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
+        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
+
+        return train_X, train_y, test_X, test_y
+
+    @staticmethod
+    def load_MSL(chan_id):
+        base_dir = "data/MSL"
+        label = pd.read_csv(os.path.join(base_dir, "labeled_anomalies.csv"))
+        MSL_label = label[label["spacecraft"] == "MSL"].sort_values(by="chan_id")
+
+        train_X = np.load(os.path.join(base_dir, "train", f"{chan_id}.npy"))
+        T, C = train_X.shape
+        train_y = np.zeros((T,), dtype=int)
+
+        test_X = np.load(os.path.join(base_dir, "test", f"{chan_id}.npy"))
+        T, C = test_X.shape
+        anos = ast.literal_eval(MSL_label[MSL_label["chan_id"] == chan_id]["anomaly_sequences"].values[0])
+        test_y = np.zeros((T,), dtype=int)
+        for ano in anos:
+            s, e = ano
+            test_y[s:e] = 1
+
+        train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
+        train_y, test_y = train_y.astype(int), test_y.astype(int)
+
+        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
+        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
+
+        return train_X, train_y, test_X, test_y
+
+    @staticmethod
+    def load_yahoo(idx):
+        base_dir = "data/yahoo"
+
+        data = pd.read_csv(os.path.join(base_dir, f"{idx}.csv"))
+        X = data["value"].values[:, None]
+        label = data["is_anomaly"].values
+
+        train_X = X[:400]
+        T, C = train_X.shape
+        train_y = np.zeros((T,), dtype=int)
+
+        test_X = X[400:]
+        T, C = test_X.shape
+        test_y = label[400:]
 
         train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
         train_y, test_y = train_y.astype(int), test_y.astype(int)
@@ -380,16 +435,17 @@ class DataFactory:
 
 
     @staticmethod
-    def load_MSL(home_dir="."):
-        base_dir = "data/MSL"
-        with open(os.path.join(home_dir, base_dir, "MSL_train.pkl"), 'rb') as f:
-            train_X = pickle.load(f)
+    def load_SMD(machine_id):
+        base_dir = "data/SMD"
+        train_df = pd.read_csv(os.path.join(base_dir, "train", f"{machine_id}.txt"), header=None)
+        test_df = pd.read_csv(os.path.join(base_dir, "test", f"{machine_id}.txt"), header=None)
+        test_label_df = pd.read_csv(os.path.join(base_dir, "test_label", f"{machine_id}.txt"), header=None)
+
+        train_X = train_df.to_numpy()
         T, C = train_X.shape
         train_y = np.zeros((T,), dtype=int)
-        with open(os.path.join(home_dir, base_dir, "MSL_test.pkl"), 'rb') as f:
-            test_X = pickle.load(f)
-        with open(os.path.join(home_dir, base_dir, "MSL_test_label.pkl"), 'rb') as f:
-            test_y = pickle.load(f)
+        test_X = test_df.to_numpy()
+        test_y = test_label_df.to_numpy().squeeze(1)
 
         train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
         train_y, test_y = train_y.astype(int), test_y.astype(int)
@@ -398,7 +454,6 @@ class DataFactory:
         assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
 
         return train_X, train_y, test_X, test_y
-
 
     @staticmethod
     def visualize_dataset(train_X, train_y, test_X, test_y, dataset_name, feature_idx):

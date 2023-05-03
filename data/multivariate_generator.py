@@ -157,6 +157,7 @@ class MultivariateDataGenerator:
             self.data[dim_no][start:end] = self.data_origin[dim_no][start:end] + slope
             self.data[dim_no][end:] = self.data[dim_no][end:] + slope[-1]
             self.label[start:end] = 1
+            break
 
     def collective_seasonal_outliers(self,dim_no, ratio, factor, radius):
         """
@@ -187,7 +188,7 @@ if __name__ == '__main__':
                        {'freq': 0.04, 'coef': 1.5, "offset": -2.0, 'noise_amp': 0.05},]
 
 
-    multivariate_data = MultivariateDataGenerator(dim=5, stream_length=1000, behavior=BEHAVIOR,
+    multivariate_data = MultivariateDataGenerator(dim=5, stream_length=10000, behavior=BEHAVIOR,
                                                 behavior_config=BEHAVIOR_CONFIG)
 
     # normal

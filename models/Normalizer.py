@@ -30,6 +30,10 @@ class SlowRevIN(nn.Module):
         self.mean.lerp_(mu, 1-self.gamma)
 
 
+    def _set_statistics(self, x:torch.Tensor):
+        self.mean = nn.Parameter(x, requires_grad=False)
+
+
     def _normalize(self, x):
         x = x - self.mean
         return x
@@ -41,7 +45,7 @@ class SlowRevIN(nn.Module):
 
 
 class RevIN(nn.Module):
-    def __init__(self, num_features: int, eps=1e-5, affine=True):
+    def __init__(self, num_features: int, eps=1e-5, affine=False):
         """
         :param num_features: the number of features or channels
         :param eps: a value added for numerical stability
@@ -76,16 +80,16 @@ class RevIN(nn.Module):
 
     def _normalize(self, x):
         x = x - self.mean
-        x = x / self.stdev
-        if self.affine:
-            x = x * self.affine_weight
-            x = x + self.affine_bias
+        #x = x / self.stdev
+        #if self.affine:
+        #    x = x * self.affine_weight
+        #    x = x + self.affine_bias
         return x
 
     def _denormalize(self, x):
-        if self.affine:
-            x = x - self.affine_bias
-            x = x / (self.affine_weight + self.eps*self.eps)
-        x = x * self.stdev
+        #if self.affine:
+        #    x = x - self.affine_bias
+        #    x = x / (self.affine_weight + self.eps*self.eps)
+        #x = x * self.stdev
         x = x + self.mean
         return x

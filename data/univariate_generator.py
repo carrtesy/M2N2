@@ -147,6 +147,7 @@ class UnivariateDataGenerator:
             self.data[start:end] = self.data_origin[start:end] + slope
             self.data[end:] = self.data[end:] + slope[-1]
             self.label[start:end] = 1
+            break
 
     def collective_seasonal_outliers(self, ratio, factor, radius):
         """
@@ -164,6 +165,11 @@ class UnivariateDataGenerator:
             self.data[start:end] = self.behavior(**seasonal_config)[start:end]
             self.label[start:end] = 1
 
+    def add_linear_trend(self, start=0, end=1):
+        trend = np.linspace(start, end, len(self.data))
+        self.data += trend
+        #self.data_origin = self.data.copy()
+
 
 if __name__ == '__main__':
     np.random.seed(42)
@@ -172,9 +178,10 @@ if __name__ == '__main__':
     BASE = [1.4529900e-01, 1.2820500e-01, 9.4017000e-02, 7.6923000e-02, 1.1111100e-01, 1.4529900e-01, 1.7948700e-01,
          2.1367500e-01, 2.1367500e-01]
 
-    univariate_data = UnivariateDataGenerator(stream_length=1000, behavior=sine, behavior_config=BEHAVIOR_CONFIG)
+    univariate_data = UnivariateDataGenerator(stream_length=10000, behavior=sine, behavior_config=BEHAVIOR_CONFIG)
 
     # normal
+    plt.figure(figsize=(20, 6))
     plt.plot(univariate_data.timestamp, univariate_data.data)
     outlier_idxs = np.where(univariate_data.label == 1)[0]
     outliers = list(univariate_data.data[outlier_idxs])
@@ -192,16 +199,14 @@ if __name__ == '__main__':
 
 
     # abnormal
-    univariate_data.collective_global_outliers(ratio=0.05, radius=5, option='square', coef=1.5, noise_amp=0.03,
-                                                level=20, freq=0.04,
-                                                base=BASE, offset=0.0) #2
-    univariate_data.collective_seasonal_outliers(ratio=0.05, factor=3, radius=5) #3
-    univariate_data.collective_trend_outliers(ratio=0.05, factor=0.5, radius=5) #4
-
+    #univariate_data.collective_global_outliers(ratio=0.05, radius=5, option='square', coef=1.5, noise_amp=0.03,level=20, freq=0.04,base=BASE, offset=0.0) #2
+    #univariate_data.collective_seasonal_outliers(ratio=0.05, factor=3, radius=5) #3
+    #univariate_data.collective_trend_outliers(ratio=0.05, factor=0.5, radius=5) #4
     univariate_data.point_global_outliers(ratio=0.05, factor=3.5, radius=5) #0
     univariate_data.point_contextual_outliers(ratio=0.05, factor=2.5, radius=5) #1
-    
+    univariate_data.add_linear_trend(0, 5)
 
+    plt.figure(figsize=(20, 6))
     plt.plot(univariate_data.timestamp, univariate_data.data)
     outlier_idxs = np.where(univariate_data.label == 1)[0]
     outliers = list(univariate_data.data[outlier_idxs])
