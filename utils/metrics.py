@@ -1,11 +1,17 @@
 import copy
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-
+import numpy as np
 
 def get_summary_stats(gt, pred):
     '''
     return acc, prec, recall, f1, (tn, fp, fn, tp)
     '''
+
+    # filter out -1's (paddings)
+    mask = (gt != -1)
+    gt = np.copy(gt)[mask]
+    pred = np.copy(pred)[mask]
+
     # Without Adjust
     acc = accuracy_score(gt, pred)
     p = precision_score(gt, pred, zero_division=1)
@@ -22,7 +28,7 @@ def get_summary_stats(gt, pred):
     tn_PA, fp_PA, fn_PA, tp_PA = confusion_matrix(gt, pred_PA).ravel()
 
     result = {
-        # non-adjusted
+        # non-adjusted metrics
         f"Accuracy": acc,
         f"Precision": p,
         f"Recall": r,
@@ -31,7 +37,8 @@ def get_summary_stats(gt, pred):
         f"fp": fp,
         f"fn": fn,
         f"tp": tp,
-        # adjusted
+
+        # adjusted metrics
         f"Accuracy_PA": acc_PA,
         f"Precision_PA": p_PA,
         f"Recall_PA": r_PA,
@@ -44,11 +51,12 @@ def get_summary_stats(gt, pred):
     return result
 
 
+
+'''
+Point-Adjust
+https://github.com/thuml/Anomaly-Transformer/blob/main/solver.py
+'''
 def PA(y, y_pred):
-    '''
-    Point-Adjust Algorithm
-    https://github.com/thuml/Anomaly-Transformer/blob/main/solver.py
-    '''
     anomaly_state = False
     y_pred_pa = copy.deepcopy(y_pred)
     for i in range(len(y)):

@@ -1,0 +1,8 @@
+# Config from THOC supplementary materials.
+# https://proceedings.neurips.cc/paper_files/paper/2020/hash/97e401a02082021fd24957f852e0e475-Abstract.html
+
+name: THOC
+hidden_dim: 64
+L2_reg: 0.000001
+LAMBDA_orth: 1.0
+LAMBDA_TSS: 1.0

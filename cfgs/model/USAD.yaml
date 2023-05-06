@@ -1,0 +1,5 @@
+name: USAD
+latent_dim: 40
+alpha: 0.1
+beta: 0.9
+dsr: 5

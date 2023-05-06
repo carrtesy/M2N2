@@ -38,7 +38,11 @@ import os
 from data.load_data import DataFactory
 from Exp.MLP import MLP_Trainer
 from Exp.LSTMEncDec import LSTMEncDec_Trainer
+from Exp.USAD import USAD_Trainer
+from Exp.THOC import THOC_Trainer
+from Exp.OmniAnomaly import OmniAnomaly_Trainer
 from Exp.AnomalyTransformer import AnomalyTransformer_Trainer
+
 
 warnings.filterwarnings("ignore")
 
@@ -73,6 +77,9 @@ def main(cfg: DictConfig) -> None:
     Trainers = {
         "MLP": MLP_Trainer,
         "LSTMEncDec": LSTMEncDec_Trainer,
+        "USAD": USAD_Trainer,
+        "OmniAnomaly": OmniAnomaly_Trainer,
+        "THOC": THOC_Trainer,
         "AnomalyTransformer": AnomalyTransformer_Trainer,
     }
 

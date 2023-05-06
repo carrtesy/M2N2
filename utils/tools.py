@@ -58,6 +58,12 @@ def get_best_static_threshold(gt, anomaly_scores):
     '''
     Find the threshold that maximizes f1-score
     '''
+
+    # filter out pads
+    mask = (gt != -1)
+    gt = np.copy(gt)[mask]
+    anomaly_scores = np.copy(anomaly_scores)[mask]
+
     P, N = (gt == 1).sum(), (gt == 0).sum()
     fpr, tpr, thresholds = roc_curve(gt, anomaly_scores)
 

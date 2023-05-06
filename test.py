@@ -39,6 +39,9 @@ from data.load_data import DataFactory
 
 from Exp.MLP import MLP_Tester
 from Exp.LSTMEncDec import LSTMEncDec_Tester
+from Exp.USAD import USAD_Tester
+from Exp.THOC import THOC_Tester
+from Exp.OmniAnomaly import OmniAnomaly_Tester
 from Exp.AnomalyTransformer import AnomalyTransformer_Tester
 
 import pandas as pd
@@ -76,6 +79,9 @@ def main(cfg: DictConfig) -> None:
     Testers = {
         "MLP": MLP_Tester,
         "LSTMEncDec": LSTMEncDec_Tester,
+        "USAD": USAD_Tester,
+        "OmniAnomaly": OmniAnomaly_Tester,
+        "THOC": THOC_Tester,
         "AnomalyTransformer": AnomalyTransformer_Tester,
     }
 

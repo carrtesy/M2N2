@@ -93,13 +93,13 @@ class Tester:
                 torch.save(test_errors, f)
         torch.cuda.empty_cache()
 
-        # test errors (T=B*L, ) and ground truth
-        self.train_errors = train_errors.detach().cpu().numpy()
-        self.test_errors = test_errors.detach().cpu().numpy()
+        # train_errors, test errors (T=B*L, ) and ground truth
+        train_mask = (self.train_loader.dataset.y != -1)
+        self.train_errors = train_errors.detach().cpu().numpy()[train_mask] # does not include -1's
+        self.test_errors = test_errors.detach().cpu().numpy() # may include -1's, filtered when calculating final results.
         self.gt = self.test_loader.dataset.y
 
-        # thresholds
-        ## quantile-based
+        # thresholds for visualization
         self.th_q95 = np.quantile(self.train_errors, 0.95)
         self.th_q99 = np.quantile(self.train_errors, 0.99)
         self.th_q100 = np.quantile(self.train_errors, 1.00)
@@ -147,6 +147,7 @@ class Tester:
 
             pred = self.online(self.test_loader, tau, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
+            wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_{th}.csv"))
             self.logger.info(f"{mode} \n {result_df.to_string()}")
@@ -159,6 +160,27 @@ class Tester:
             )
             self.logger.info(f"{mode} \n {result_df.to_string()}")
             return result_df
+
+        elif mode == "online_label":
+            th = self.args.thresholding
+            if th[0] == "q":
+                th = float(th[1:]) / 100
+                tau = np.quantile(self.train_errors, th)
+            elif th == "otsu":
+                tau = self.th_otsu
+            elif th == "pot":
+                tau = self.th_pot
+            elif th == "tbest":
+                tau = self.th_best_static
+
+            pred = self.online_label(self.test_loader, tau, normalization=self.args.normalization)
+            result = get_summary_stats(gt, pred)
+            wandb.log(result)
+            result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
+            result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_{th}.csv"))
+            self.logger.info(f"{mode} \n {result_df.to_string()}")
+            return result_df
+
 
         elif mode == "online_label_all":
             result_df = self.online_label_all(
@@ -181,7 +203,7 @@ class Tester:
 
 
     def online_label(self, *args):
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
     def offline(self, th="q95.1"):

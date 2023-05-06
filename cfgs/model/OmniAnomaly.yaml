@@ -1,0 +1,5 @@
+name: OmniAnomaly
+hidden_dim: 500
+z_dim: 3
+dense_dim: 500
+K: 20

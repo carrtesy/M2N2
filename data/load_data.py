@@ -30,23 +30,6 @@ class DataFactory:
             "CreditCard": self.load_CreditCard,
         }
 
-        self.datasets = {
-            "toyUSW": TSADStandardDataset,
-            "NeurIPS-TS-UNI": TSADStandardDataset,
-            "NeurIPS-TS-MUL": TSADStandardDataset,
-            "SWaT": TSADStandardDataset,
-            "WADI": TSADStandardDataset,
-            "SMD": TSADStandardDataset,
-            "PSM": TSADStandardDataset,
-            "SMAP_G-1": TSADStandardDataset,
-            "SMAP_D-13": TSADStandardDataset,
-            "SMD_machine-1-4": TSADStandardDataset,
-            "MSL_P-15": TSADStandardDataset,
-            "yahoo_20": TSADStandardDataset,
-            "Pump": TSADStandardDataset,
-            "CreditCard": TSADStandardDataset,
-        }
-
         self.transforms = {
             "minmax": preprocessing.MinMaxScaler(),
             "std": preprocessing.StandardScaler(),
@@ -72,7 +55,6 @@ class DataFactory:
             window_size=self.args.window_size,
             stride=self.args.stride,
             eval_stride=self.args.eval_stride,
-            dataset_type=self.args.dataset,
             batch_size=self.args.batch_size,
             eval_batch_size=self.args.eval_batch_size,
             train_shuffle=True,
@@ -116,7 +98,6 @@ class DataFactory:
                 window_size,
                 stride,
                 eval_stride,
-                dataset_type,
                 batch_size,
                 eval_batch_size,
                 train_shuffle,
@@ -125,7 +106,7 @@ class DataFactory:
                 ):
 
         transform = self.transforms[scaler]
-        train_dataset = self.datasets[dataset_type](
+        train_dataset = TSADStandardDataset(
             train_X, train_y,
             flag="train", transform=transform,
             window_size=window_size,
@@ -138,7 +119,7 @@ class DataFactory:
         )
 
         transform = train_dataset.transform
-        test_dataset = self.datasets[dataset_type](
+        test_dataset = TSADStandardDataset(
             test_X, test_y,
             flag="test", transform=transform,
             window_size=window_size,
@@ -489,15 +470,31 @@ class DataFactory:
 
 
 class TSADStandardDataset(Dataset):
-    def __init__(self, X, y, flag, transform, window_size, stride):
+    def __init__(self, X:np.array, y:np.array, flag, transform, window_size, stride):
         super().__init__()
         self.transform = transform
-        self.len = (X.shape[0] - window_size) // stride + 1
-        self.window_size = window_size
-        self.stride = stride
+        if flag == "train":
+            self.transform.fit(X)
+        # raw X, raw y (before window fitting)
+        self.rX = X
+        self.ry = y
 
-        X, y = X[:self.len*self.window_size], y[:self.len*self.window_size]
-        self.X = self.transform.fit_transform(X) if flag == "train" else self.transform.transform(X)
+        # fit to window size
+        self.W = window_size
+        self.S = stride
+        self.T = X.shape[0] # total timesteps
+        d = (self.T - self.W) // self.S + 1  # number of length W chunks.
+        self.len = d
+
+        # timestep remainders: concat last W observation, label with -1.
+        r = self.T - (self.W + (d-1) * self.S)
+        if r != 0:
+            self.len += 1
+            n_repeat = self.W - r
+            X = np.concatenate([X[:d*self.W], X[-self.W:]])
+            y = np.concatenate([y[:d*self.W], np.array([-1]*n_repeat), y[d*self.W:]]) # 0 for normals, 1 for anomalies, -1 for paddings.
+
+        self.X = self.transform.transform(X)
         self.y = y
 
 
@@ -506,12 +503,20 @@ class TSADStandardDataset(Dataset):
 
 
     def __getitem__(self, idx):
-        _idx = idx * self.stride
-        X, y = self.X[_idx:_idx+self.window_size], self.y[_idx:_idx+self.window_size]
+        _idx = idx * self.S
+        X, y = self.X[_idx:_idx+self.W], self.y[_idx:_idx+self.W]
         return X, y
 
+
 if __name__ == "__main__":
-    datafactory = DataFactory()
-    train_X, train_y, test_X, test_y = datafactory.load_MSL("..")
-    # train_X, train_y, test_X, test_y = datafactory.load_WADI("..")
-    # train_X, train_y, test_X, test_y = datafactory.load_NeurIPS_TS("..")
+    test_X, test_y = np.random.randn(449919, 51), np.zeros(449919)
+
+    W, S = 12, 1
+
+    data = TSADStandardDataset(
+        test_X, test_y,
+        flag="test", transform=preprocessing.StandardScaler(),
+        window_size=W,
+        stride=S,
+    )
+

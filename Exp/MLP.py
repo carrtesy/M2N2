@@ -124,71 +124,10 @@ class MLP_Tester(Tester):
         self.prepare_stats()
 
 
-    def prepare_stats(self):
-        '''
-        prepare 95, 99, 100 threshold of train errors.
-        prepare test errors, gt, and best threshold with test errors to check optimal bound of offline approaches.
-        '''
-        # train
-        train_error_pt_path = os.path.join(self.args.output_path, "train_errors.pt")
-        if self.args.load_previous_error and os.path.isfile(train_error_pt_path):
-            self.logger.info("train_errors.pt file exists, loading...")
-            with open(train_error_pt_path, 'rb') as f:
-                train_errors = torch.load(f)
-                train_errors.to(self.args.device)
-            self.logger.info(f"{train_errors.shape}")
-        else:
-            self.logger.info("train_errors.pt file does not exist, calculating...")
-            train_errors = self.calculate_recon_errors(self.train_loader).mean(dim=2)  # (B, L, C) => (B, L)
-            self.logger.info("saving train_errors.pt...")
-            with open(train_error_pt_path, 'wb') as f:
-                torch.save(train_errors, f)
-        torch.cuda.empty_cache()
-
-        # test
-        test_error_pt_path = os.path.join(self.args.output_path, "test_errors.pt")
-        if self.args.load_previous_error and os.path.isfile(test_error_pt_path):
-            self.logger.info("test_errors.pt file exists, loading...")
-            with open(test_error_pt_path, 'rb') as f:
-                test_errors = torch.load(f)
-                test_errors.to(self.args.device)
-            self.logger.info(f"{test_errors.shape}")
-        else:
-            self.logger.info("test_errors.pt file does not exist, calculating...")
-            test_errors = self.calculate_recon_errors(self.test_loader, save_outputs=True).mean(dim=2)  # (B, L, C) => (B, L)
-            self.logger.info("saving test_errors.pt...")
-            with open(test_error_pt_path, 'wb') as f:
-                torch.save(test_errors, f)
-        torch.cuda.empty_cache()
-
-        # test errors (T=B*L, C) and ground truth
-        self.train_errors = train_errors.reshape(-1).detach().cpu().numpy()
-        self.test_errors = test_errors.reshape(-1).detach().cpu().numpy()
-        self.gt = self.test_loader.dataset.y
-
-        # thresholds
-        ## quantile-based
-        self.th_q95 = np.quantile(self.train_errors, 0.95)
-        self.th_q99 = np.quantile(self.train_errors, 0.99)
-        self.th_q100 = np.quantile(self.train_errors, 1.00)
-
-        ## with test data
-        self.th_best_static = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_errors)
-
-
-        if self.args.thresholding in ["otsu", "pot"]:
-            ## otsu
-            self.th_otsu = otsu_threshold(self.train_errors)
-
-            ## pot + otsu
-            risk = (self.train_errors>self.th_otsu).sum()/len(self.train_errors)
-            self.th_pot, _ = pot(self.train_errors, risk, init_level=self.args.tau_beta)
-
-
     @torch.no_grad()
     def calculate_anomaly_scores(self, dataloader):
         recon_errors = self.calculate_recon_errors(dataloader) # B, L, C
-        anomaly_scores = recon_errors.mean(dim=2).reshape(-1) # B, L -> (T=B*L, )
+        anomaly_scores = recon_errors.mean(dim=2).reshape(-1).detach().cpu() # B, L -> (T=B*L, )
         return anomaly_scores
 
 
