@@ -1,0 +1,42 @@
+program: test.py
+method: grid
+name: SWaT_MLP_online
+project: OnlineTSAD
+entity: carrtesy
+metric:
+  name: F1
+  goal: maximize
+parameters:
+  dataset:
+    value: "SWaT"
+  infer_options:
+    value: ["online"]
+  normalization:
+    value: SlowRevIN
+  gamma:
+    values: [0.9, 0.99, 0.999, 0.9999, 0.99999, 1]
+  ttlr:
+    values: [0.01, 0.005, 0.0001, 0.0005, 0.00001, 0.00005, 0.000001]
+  thresholding:
+    values: [tbest,
+             q90.0,q91.0,q92.0,q93.0,q94.0,q95.0,q96.0,q97.0,q98.0,q99.0,
+             q90.1,q91.1,q92.1,q93.1,q94.1,q95.1,q96.1,q97.1,q98.1,q99.1,
+             q90.2,q91.2,q92.2,q93.2,q94.2,q95.2,q96.2,q97.2,q98.2,q99.2,
+             q90.3,q91.3,q92.3,q93.3,q94.3,q95.3,q96.3,q97.3,q98.3,q99.3,
+             q90.4,q91.4,q92.4,q93.4,q94.4,q95.4,q96.4,q97.4,q98.4,q99.4,
+             q90.5,q91.5,q92.5,q93.5,q94.5,q95.5,q96.5,q97.5,q98.5,q99.5,
+             q90.6,q91.6,q92.6,q93.6,q94.6,q95.6,q96.6,q97.6,q98.6,q99.6,
+             q90.7,q91.7,q92.7,q93.7,q94.7,q95.7,q96.7,q97.7,q98.7,q99.7,
+             q90.8,q91.8,q92.8,q93.8,q94.8,q95.8,q96.8,q97.8,q98.8,q99.8,
+             q90.9,q91.9,q92.9,q93.9,q94.9,q95.9,q96.9,q97.9,q98.9,q99.9,
+             q100
+    ]
+  exp_id:
+    value: default
+
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}

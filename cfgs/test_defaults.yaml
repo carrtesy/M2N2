@@ -24,10 +24,6 @@ eval_stride: 12
 scaler: std
 load_previous_error: True
 
-# Training Hyperparameters
-lr: 1e-03
-epochs: 30
-
 # test-time Hyperparameters
 ttlr: 1e-03
 

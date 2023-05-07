@@ -5,7 +5,7 @@ Dongmin Kim (tommy.dm.kim@gmail.com)
 
 import torch
 import torch.nn as nn
-from models.Normalizer import RevIN, SlowRevIN
+from models.Normalizer import Detrender
 
 
 class MLP(nn.Module):
@@ -16,12 +16,9 @@ class MLP(nn.Module):
         self.decoder = Decoder(seq_len*num_channels, latent_space_size)
         self.normalization = normalization
 
-        if self.normalization == "RevIN":
+        if self.normalization == "Detrend":
             self.use_normalizer = True
-            self.normalizer = RevIN(num_channels)
-        elif self.normalization == "SlowRevIN":
-            self.use_normalizer = True
-            self.normalizer = SlowRevIN(num_channels, gamma=gamma)
+            self.normalizer = Detrender(num_channels, gamma=gamma)
         else:
             self.use_normalizer = False
 
