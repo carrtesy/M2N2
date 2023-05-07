@@ -6,33 +6,18 @@ from Exp.Tester import Tester
 
 # models
 from models.AnomalyTransformer import AnomalyTransformer
-from pyod.models.deep_svdd import DeepSVDD
-#from models.DAGMM import DAGMM
-#from models.THOC import THOC
 
 # utils
-from utils.metrics import PA
-#from utils.optim import adjust_learning_rate
-#from utils.custom_loss import my_kl_loss
-from utils.metrics import PA
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
-from sklearn.metrics import roc_curve, roc_auc_score
 from utils.tools import plot_interval, get_best_static_threshold
-from utils.tools import to_var # for DAGMM.
 from utils.loss import my_kl_loss
 from utils.optim import adjust_learning_rate
 
 # others
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 import time
 import os
-import datetime
-
-from tqdm import tqdm
-import pickle
 
 import pandas as pd
 from utils.metrics import get_summary_stats

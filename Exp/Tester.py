@@ -1,5 +1,3 @@
-import copy
-
 import torch
 import numpy as np
 
@@ -8,7 +6,6 @@ import matplotlib.pyplot as plt
 
 import pickle
 from utils.metrics import get_summary_stats
-from sklearn.metrics import roc_curve
 import os
 from utils.tools import plot_interval, get_best_static_threshold
 
@@ -238,9 +235,10 @@ class Tester:
         raise NotImplementedError()
 
 
+    def online_label(self, *args):
+        raise NotImplementedError()
+
+
     def online_label_all(self, *args):
         raise NotImplementedError()
 
-
-    def online_label(self, *args):
-        raise NotImplementedError()

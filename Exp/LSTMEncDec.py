@@ -2,8 +2,6 @@ import os
 import pandas as pd
 import wandb
 from tqdm import tqdm
-import copy
-import matplotlib.pyplot as plt
 
 # Trainer
 from Exp.Trainer import Trainer
@@ -17,10 +15,6 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from utils.tools import plot_interval, get_best_static_threshold
-from utils.loss import soft_f1_loss, FocalLoss
-from thresholding.otsu import otsu_threshold
-from thresholding.pot import pot
 
 
 class LSTMEncDec_Trainer(Trainer):

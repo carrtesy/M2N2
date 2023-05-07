@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from utils.metrics import get_summary_stats
-from utils.tools import plot_interval, get_best_static_threshold
+from utils.tools import plot_interval
 
 
 
