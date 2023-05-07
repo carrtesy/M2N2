@@ -2,32 +2,22 @@
 exp_id: default
 infer_options: [
   "offline_all",
-  #"online_ST"
 ]
 
 # thresholding
-thresholding: None
-tau_beta: 0.99
-
-# offline range
-qStart: 0.90
-qEnd: 1.00
-qStep: 0.01
+thresholding: q95.0
 
 # Data Preprocessing
-dataset: NeurIPS-TS-MUL
+dataset: SWaT
 batch_size: 64
 eval_batch_size: 1
 window_size: 12
 stride: 12
 eval_stride: 12
 scaler: std
-load_previous_error: True
 
 # test-time Hyperparameters
 ttlr: 1e-03
-
-# normalization
 normalization: "None"
 gamma: 0.99
 
@@ -40,6 +30,8 @@ plot_path: ./plots
 result_path: ./results
 plot_anomaly_scores: True
 plot_recon_status: False
+save_result: True
+load_anoscs: True
 
 # Model-specific arguments
 defaults:

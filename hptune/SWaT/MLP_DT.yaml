@@ -1,6 +1,6 @@
 program: test.py
 method: grid
-name: SWaT_MLP_online
+name: SWaT_MLP_online_DT
 project: OnlineTSAD
 entity: carrtesy
 metric:
@@ -12,13 +12,15 @@ parameters:
   infer_options:
     value: ["online"]
   normalization:
-    value: SlowRevIN
+    value: Detrend
+  save_result:
+    value: False
   gamma:
     values: [0.9, 0.99, 0.999, 0.9999, 0.99999, 1]
   ttlr:
     values: [0.01, 0.005, 0.0001, 0.0005, 0.00001, 0.00005, 0.000001]
   thresholding:
-    values: [tbest,
+    values: [stbest,
              q90.0,q91.0,q92.0,q93.0,q94.0,q95.0,q96.0,q97.0,q98.0,q99.0,
              q90.1,q91.1,q92.1,q93.1,q94.1,q95.1,q96.1,q97.1,q98.1,q99.1,
              q90.2,q91.2,q92.2,q93.2,q94.2,q95.2,q96.2,q97.2,q98.2,q99.2,

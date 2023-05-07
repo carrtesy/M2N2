@@ -48,7 +48,6 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 
-
 @hydra.main(version_base=None, config_path="cfgs", config_name="test_defaults")
 def main(cfg: DictConfig) -> None:
     # SEED

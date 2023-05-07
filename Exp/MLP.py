@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import wandb
 from tqdm import tqdm
-import copy
 import matplotlib.pyplot as plt
 
 # Trainer
@@ -11,19 +10,14 @@ from Exp.Tester import Tester
 
 # models
 from models.MLP import MLP
-from models.LSTMEncDec import LSTMEncDec
 
 # others
 import torch
 import torch.nn.functional as F
 import numpy as np
-
 from utils.metrics import get_summary_stats
-from utils.ema import EMAUpdater
 from utils.tools import plot_interval, get_best_static_threshold
-from utils.loss import soft_f1_loss, FocalLoss
-from thresholding.otsu import otsu_threshold
-from thresholding.pot import pot
+
 
 
 class MLP_Trainer(Trainer):
@@ -156,7 +150,7 @@ class MLP_Tester(Tester):
             recon_error = F.mse_loss(Xhat, X, reduction='none')
             recon_errors.append(recon_error)
 
-        # save recon'd outputs
+        # save recon outputs
         if save_outputs:
             Xs = torch.cat(Xs, axis=0)
             Xhats = torch.cat(Xhats, axis=0)
@@ -168,11 +162,10 @@ class MLP_Tester(Tester):
                 torch.save(Xhats, f)
 
         recon_errors = torch.cat(recon_errors, axis=0)
-
         return recon_errors
 
 
-    def offline_with_SlowRevIN(self, dataloader, init_thr, normalization="SlowRevIN"):
+    def offline_detrend(self, dataloader, init_thr, normalization="Detrend"):
         self.load_trained_model()  # reset
 
         it = tqdm(
@@ -190,7 +183,7 @@ class MLP_Tester(Tester):
             B, L, C = X.shape
 
             # Update of test-time statistics.
-            if normalization == "SlowRevIN":
+            if normalization == "Detrend":
                 self.model.normalizer._update_statistics(X)
 
             # inference
@@ -208,46 +201,22 @@ class MLP_Tester(Tester):
         return preds
 
 
-    def offline_with_SlowRevIN_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
+    def offline_detrend_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
         result_df = pd.DataFrame(columns=cols)
         for q in np.arange(qStart, qEnd + 1e-07, qStep):
-            th = np.quantile(self.train_errors, min(q, qEnd))
-            pred = self.offline_with_SlowRevIN(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            th = np.quantile(self.train_anoscs, min(q, qEnd))
+            pred = self.offline_detrend(self.test_loader, init_thr=th, normalization=self.args.normalization)
             result = get_summary_stats(self.gt, pred)
             self.logger.info(result)
             result_df = pd.concat(
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q * 100:.3f}", "tau"] = th
 
-        pred = self.offline_with_SlowRevIN(self.test_loader, init_thr=self.th_best_static, normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
-        result_df.at[f"Qbest", "tau"] = self.th_best_static
-        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_wSR_{qStart}_{qEnd}_{qStep}.csv"))
-
-        return result_df
-
-
-    def online_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
-        result_df = pd.DataFrame(columns=cols)
-        for q in np.arange(qStart, qEnd + qStep, qStep):
-            q = min(q, qEnd)
-            th = np.quantile(self.train_errors, q)
-            pred = self.online(self.test_loader, init_thr=th, normalization=self.args.normalization)
-            result = get_summary_stats(self.gt, pred)
-            self.logger.info(result)
-            result_df = pd.concat(
-                [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
-            result_df.at[f"Q{q * 100:.3f}", "tau"] = th
-
-
-        pred = self.online(self.test_loader, init_thr=self.th_best_static,
-                                           normalization=self.args.normalization)
+        pred = self.offline_detrend(self.test_loader, init_thr=self.th_best_static, normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
         result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
         result_df.at[f"Qbest", "tau"] = self.th_best_static
 
-        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_{qStart}_{qEnd}_{qStep}.csv"))
         return result_df
 
 
@@ -273,7 +242,7 @@ class MLP_Tester(Tester):
             B, L, C = X.shape
 
             # Update of test-time statistics.
-            if normalization == "SlowRevIN":
+            if normalization == "Detrend":
                 self.model.normalizer._update_statistics(X)
 
             # inference
@@ -311,7 +280,7 @@ class MLP_Tester(Tester):
             self.logger.info("Plotting anomaly scores...")
             plt.figure(figsize=(20, 6), dpi=500)
             plt.title(f"online_{self.args.dataset}_tau_{tau}")
-            plt.plot(self.test_errors, color="blue", label="anomaly score w/o online learning")
+            plt.plot(self.test_anoscs, color="blue", label="anomaly score w/o online learning")
             plt.plot(anoscs, color="green", label="anomaly score w/ online learning")
             plt.plot(thrs, color="black", label="threshold")
 
@@ -341,26 +310,23 @@ class MLP_Tester(Tester):
         return preds
 
 
-    def online_label_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
+    def online_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
         result_df = pd.DataFrame(columns=cols)
         for q in np.arange(qStart, qEnd + qStep, qStep):
             q = min(q, qEnd)
-            th = np.quantile(self.train_errors, q)
-            pred = self.online_label(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            th = np.quantile(self.train_anoscs, q)
+            pred = self.online(self.test_loader, init_thr=th, normalization=self.args.normalization)
             result = get_summary_stats(self.gt, pred)
             self.logger.info(result)
-
             result_df = pd.concat(
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q * 100:.3f}", "tau"] = th
 
-        pred = self.online_label(self.test_loader, init_thr=self.th_best_static,
-                           normalization=self.args.normalization)
+        pred = self.online(self.test_loader, init_thr=self.th_best_static,
+                                           normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
         result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
         result_df.at[f"Qbest", "tau"] = self.th_best_static
-
-        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_online_label_{qStart}_{qEnd}_{qStep}.csv"))
         return result_df
 
 
@@ -387,7 +353,7 @@ class MLP_Tester(Tester):
             B, L, C = X.shape
 
             # Update of test-time statistics.
-            if normalization == "SlowRevIN":
+            if normalization == "Detrend":
                 self.model.normalizer._update_statistics(X)
 
             # inference
@@ -425,7 +391,7 @@ class MLP_Tester(Tester):
             self.logger.info("Plotting anomaly scores...")
             plt.figure(figsize=(20, 6), dpi=500)
             plt.title(f"online_{self.args.dataset}_tau_{tau}")
-            plt.plot(self.test_errors, color="blue", label="anomaly score w/o online learning")
+            plt.plot(self.test_anoscs, color="blue", label="anomaly score w/o online learning")
             plt.plot(anoscs, color="green", label="anomaly score w/ online learning")
             plt.plot(thrs, color="black", label="threshold")
 
@@ -453,3 +419,23 @@ class MLP_Tester(Tester):
                 wandb.log({f"{title}": wandb.Image(plt)})
 
         return preds
+
+
+    def online_label_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
+        result_df = pd.DataFrame(columns=cols)
+        for q in np.arange(qStart, qEnd + 1e-07, qStep):
+            th = np.quantile(self.train_anoscs, min(q, qEnd))
+            pred = self.online_label(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            result = get_summary_stats(self.gt, pred)
+            self.logger.info(result)
+
+            result_df = pd.concat(
+                [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
+            result_df.at[f"Q{q * 100:.3f}", "tau"] = th
+
+        pred = self.online_label(self.test_loader, init_thr=self.th_best_static,
+                           normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
+        result_df.at[f"Qbest", "tau"] = self.th_best_static
+        return result_df
