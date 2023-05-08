@@ -65,27 +65,22 @@ def get_best_static_threshold(gt, anomaly_scores):
     anomaly_scores = np.copy(anomaly_scores)[mask]
 
     P, N = (gt == 1).sum(), (gt == 0).sum()
-    fpr, tpr, thresholds = roc_curve(gt, anomaly_scores)
+    fpr, tpr, thresholds = roc_curve(gt, anomaly_scores, drop_intermediate=False)
 
     fp = np.array(fpr * N, dtype=int)
     tn = np.array(N - fp, dtype=int)
     tp = np.array(tpr * P, dtype=int)
     fn = np.array(P - tp, dtype=int)
 
-    eps = 1e-6
+    # precision, recall score from confusion matrix
+    eps = 1e-12
     precision = tp / np.maximum(tp + fp, eps)
     recall = tp / np.maximum(tp + fn, eps)
-    f1 = 2 * (precision * recall) / np.maximum(precision + recall, eps)
+
+    # f1 score
+    den = precision + recall
+    den[den==0.0] = 1
+    f1 = 2 * (precision * recall) / den
     idx = np.argmax(f1)
     best_threshold = thresholds[idx]
     return best_threshold
-
-
-if __name__ == "__main__":
-    print("*")
-    read_xlsx_and_convert_to_csv("../data/SWaT/SWaT_Dataset_Attack_v0.xlsx")
-    print("*")
-    read_xlsx_and_convert_to_csv("../data/SWaT/SWaT_Dataset_Normal_v0.xlsx")
-    print("*")
-    read_xlsx_and_convert_to_csv("../data/SWaT/SWaT_Dataset_Normal_v1.xlsx")
-    print("*")

@@ -186,7 +186,7 @@ class Tester:
         plt.legend()
         plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_offline.png"))
         wandb.log({f"{self.args.exp_id}_offline": wandb.Image(plt)})
-        return (self.test_anoscs > tau)
+        return (self.test_anoscs >= tau)
 
 
     def offline_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
@@ -195,12 +195,12 @@ class Tester:
         # according to quantiles.
         for q in np.arange(qStart, qEnd + 1e-07, qStep):
             th = np.quantile(self.train_anoscs, min(q, qEnd))
-            result = get_summary_stats(self.gt, self.test_anoscs > th)
+            result = get_summary_stats(self.gt, self.test_anoscs >= th)
             result_df = pd.concat([result_df, pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q*100:.3f}", "tau"] = th
 
         # threshold with test data
-        best_result = get_summary_stats(self.gt, self.test_anoscs > self.th_best_static)
+        best_result = get_summary_stats(self.gt, self.test_anoscs >= self.th_best_static)
         result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
         result_df.at[f"Qbest", "tau"] = self.th_best_static
         result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_{qStart}_{qEnd}_{qStep}.csv"))

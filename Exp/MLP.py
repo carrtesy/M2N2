@@ -190,7 +190,7 @@ class MLP_Tester(Tester):
             Xhat = self.model(X)
             E = (Xhat - X) ** 2
             A = E.mean(dim=2)
-            ytilde = (A > tau).float()
+            ytilde = (A >= tau).float()
             pred = ytilde
 
             # log model outputs
@@ -249,7 +249,7 @@ class MLP_Tester(Tester):
             Xhat = self.model(X)
             E = (Xhat-X)**2
             A = E.mean(dim=2)
-            ytilde = (A > tau).float()
+            ytilde = (A >= tau).float()
             pred = ytilde
 
             # log model outputs
@@ -360,7 +360,7 @@ class MLP_Tester(Tester):
             Xhat = self.model(X)
             E = (Xhat-X)**2
             A = E.mean(dim=2)
-            ytilde = (A > tau).float()
+            ytilde = (A >= tau).float()
             pred = ytilde
 
             # log model outputs
