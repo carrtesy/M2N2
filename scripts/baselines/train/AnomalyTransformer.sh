@@ -1,5 +1,5 @@
 # AnomalyTransformer
-export CUDA_VISIBLE_DEVICES=$1
+export CUDA_VISIBLE_DEVICES=$1;
 python train.py dataset=SWaT window_size=100 stride=100 eval_stride=100 batch_size=256 eval_batch_size=256 normalization=None model=AnomalyTransformer model.anomaly_ratio=0.5 &&
 python train.py dataset=WADI window_size=100 stride=100 eval_stride=100 batch_size=256 eval_batch_size=256 normalization=None model=AnomalyTransformer model.anomaly_ratio=0.5 &&
 python train.py dataset=PSM window_size=100 stride=100 eval_stride=100 batch_size=256 eval_batch_size=256 normalization=None model=AnomalyTransformer model.anomaly_ratio=1.0 &&

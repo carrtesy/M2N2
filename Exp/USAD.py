@@ -118,10 +118,6 @@ class USAD_Tester(Tester):
             latent_space_size=args.model.latent_dim,
         ).to(self.args.device)
 
-        self.optimizer1 = torch.optim.Adam(params=self.model.parameters(), lr=args.lr)
-        self.optimizer2 = torch.optim.Adam(params=self.model.parameters(), lr=args.lr)
-        self.epoch = 0
-
         self.load_trained_model()
         self.prepare_stats()
 

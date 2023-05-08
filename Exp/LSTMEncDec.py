@@ -100,8 +100,6 @@ class LSTMEncDec_Tester(Tester):
             dropout=self.args.model.dropout,
         ).to(self.args.device)
 
-        self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=self.args.lr)
-
         self.load_trained_model()
         self.prepare_stats()
 

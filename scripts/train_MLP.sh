@@ -1,5 +1,6 @@
-python train.py dataset=SWaT window_size=12 stride=12 eval_stride=12 normalization=None model=MLP model.latent_dim=128 &&
-python train.py dataset=SWaT window_size=12 stride=12 eval_stride=12 normalization=Detrend model=MLP model.latent_dim=128 &&
+CUDA_VISIBLE_DEVICES=$1;
+#python train.py dataset=SWaT window_size=12 stride=12 eval_stride=12 normalization=None model=MLP model.latent_dim=128 &&
+#python train.py dataset=SWaT window_size=12 stride=12 eval_stride=12 normalization=Detrend model=MLP model.latent_dim=128 &&
 python train.py dataset=WADI window_size=12 stride=12 eval_stride=12 normalization=None model=MLP model.latent_dim=128 &&
 python train.py dataset=WADI window_size=12 stride=12 eval_stride=12 normalization=Detrend model=MLP model.latent_dim=128 &&
 python train.py dataset=PSM window_size=12 stride=12 eval_stride=12 normalization=None model=MLP model.latent_dim=128 &&

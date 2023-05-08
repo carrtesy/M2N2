@@ -113,7 +113,7 @@ class THOC_Tester(Tester):
         eval_iterator = tqdm(
             dataloader,
             total=len(dataloader),
-            desc="calculating reconstruction errors",
+            desc="calculating anomaly scores",
             leave=True
         )
 
