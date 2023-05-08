@@ -212,10 +212,30 @@ class MLP_Tester(Tester):
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q * 100:.3f}", "tau"] = th
 
-        pred = self.offline_detrend(self.test_loader, init_thr=self.th_best_static, normalization=self.args.normalization)
+        # off_f1_best
+        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1_best, normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
-        result_df.at[f"Qbest", "tau"] = self.th_best_static
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
+
+        # off_f1pa_best
+        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1pa_best, normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1pa_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1pa_best", "tau"] = self.th_off_f1pa_best
+
+        # off_f1_best_train
+        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1_best_train, normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1_best_train", "tau"] = self.th_off_f1_best_train
+
+        # off_f1pa_best_train
+        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1pa_best_train, normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1pa_best_train", "tau"] = self.th_off_f1pa_best_train
+
 
         return result_df
 
@@ -322,11 +342,38 @@ class MLP_Tester(Tester):
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q * 100:.3f}", "tau"] = th
 
-        pred = self.online(self.test_loader, init_thr=self.th_best_static,
-                                           normalization=self.args.normalization)
+        # off_f1_best
+        pred = self.online(self.test_loader, init_thr=self.th_off_f1_best,
+                                    normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
-        result_df.at[f"Qbest", "tau"] = self.th_best_static
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
+
+        # off_f1pa_best
+        pred = self.online(self.test_loader, init_thr=self.th_off_f1pa_best,
+                                    normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1pa_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1pa_best", "tau"] = self.th_off_f1pa_best
+
+        # off_f1_best_train
+        pred = self.online(self.test_loader, init_thr=self.th_off_f1_best_train,
+                                    normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1_best_train", "tau"] = self.th_off_f1_best_train
+
+        # off_f1pa_best_train
+        pred = self.online(self.test_loader, init_thr=self.th_off_f1pa_best_train,
+                                    normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1pa_best_train", "tau"] = self.th_off_f1pa_best_train
+
         return result_df
 
 
@@ -433,9 +480,37 @@ class MLP_Tester(Tester):
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q * 100:.3f}", "tau"] = th
 
-        pred = self.online_label(self.test_loader, init_thr=self.th_best_static,
+
+        # off_f1_best
+        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1_best,
                            normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
-        result_df.at[f"Qbest", "tau"] = self.th_best_static
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
+
+        # off_f1pa_best
+        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1pa_best,
+                           normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1pa_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1pa_best", "tau"] = self.th_off_f1pa_best
+
+        # off_f1_best_train
+        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1_best_train,
+                           normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1_best_train", "tau"] = self.th_off_f1_best_train
+
+        # off_f1pa_best_train
+        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1pa_best_train,
+                           normalization=self.args.normalization)
+        best_result = get_summary_stats(self.gt, pred)
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1pa_best_train", "tau"] = self.th_off_f1pa_best_train
+
         return result_df

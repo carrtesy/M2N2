@@ -54,7 +54,7 @@ def set_requires_grad(model, val):
     for p in model.parameters():
         p.requires_grad = val
 
-def get_best_static_threshold(gt, anomaly_scores):
+def get_best_static_threshold(gt, anomaly_scores, th_ubd=None, th_lbd=None):
     '''
     Find the threshold that maximizes f1-score
     '''
@@ -66,6 +66,16 @@ def get_best_static_threshold(gt, anomaly_scores):
 
     P, N = (gt == 1).sum(), (gt == 0).sum()
     fpr, tpr, thresholds = roc_curve(gt, anomaly_scores, drop_intermediate=False)
+
+    # filter with availablity
+    if th_ubd:
+        tidx = (thresholds <= th_ubd)
+        fpr, tpr, thresholds = fpr[tidx], tpr[tidx], thresholds[tidx]
+
+    if th_lbd:
+        tidx = (thresholds >= th_ubd)
+        fpr, tpr, thresholds = fpr[tidx], tpr[tidx], thresholds[tidx]
+
 
     fp = np.array(fpr * N, dtype=int)
     tn = np.array(N - fp, dtype=int)

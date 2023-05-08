@@ -12,6 +12,8 @@ from utils.tools import plot_interval, get_best_static_threshold
 import wandb
 import pandas as pd
 
+from utils.metrics import PA
+
 matplotlib.rcParams['agg.path.chunksize'] = 10000
 
 
@@ -98,7 +100,12 @@ class Tester:
         self.th_q95 = np.quantile(self.train_anoscs, 0.95)
         self.th_q99 = np.quantile(self.train_anoscs, 0.99)
         self.th_q100 = np.quantile(self.train_anoscs, 1.00)
-        self.th_best_static = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_anoscs)
+
+        self.th_off_f1_best = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_anoscs)
+        self.th_off_f1pa_best = get_best_static_threshold(gt=self.gt, anomaly_scores=PA(self.gt, self.test_anoscs))
+        self.th_off_f1_best_train = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_anoscs, th_ubd=max(self.train_anoscs), th_lbd=min(self.train_anoscs))
+        self.th_off_f1pa_best_train = get_best_static_threshold(gt=self.gt, anomaly_scores=PA(self.gt, self.test_anoscs), th_ubd=max(self.train_anoscs), th_lbd=min(self.train_anoscs))
+        #self.th_best_static = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_anoscs)
 
 
     def infer(self, mode, cols):
@@ -110,8 +117,14 @@ class Tester:
         if th[0] == "q":
             th = float(th[1:]) / 100
             tau = np.quantile(self.train_anoscs, th)
-        elif th == "stbest":
-            tau = self.th_best_static
+        elif th == "off_f1_best":
+            tau = self.th_off_f1_best
+        elif th == "off_f1pa_best":
+            tau = self.th_off_f1pa_best
+        elif th == "off_f1_best_train":
+            tau = self.th_off_f1_best
+        elif th == "off_f1pa_best_train":
+            tau = self.th_off_f1pa_best
         else:
             raise ValueError(f"Thresholding mode {self.args.thresholding} is not supported.")
 
@@ -181,7 +194,10 @@ class Tester:
         plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
         plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
         plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
-        plt.axhline(self.th_best_static, color="C4", label="threshold w/ test data")
+
+        plt.axhline(self.th_off_f1_best, color="C4", label="threshold w/ test data")
+        plt.axhline(self.th_off_f1_best_train, color="C5", label="threshold w/ test data, bound to train stats")
+
         plot_interval(plt, self.gt)
         plt.legend()
         plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_offline.png"))
@@ -200,9 +216,9 @@ class Tester:
             result_df.at[f"Q{q*100:.3f}", "tau"] = th
 
         # threshold with test data
-        best_result = get_summary_stats(self.gt, self.test_anoscs >= self.th_best_static)
+        best_result = get_summary_stats(self.gt, self.test_anoscs >= self.th_off_f1_best)
         result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
-        result_df.at[f"Qbest", "tau"] = self.th_best_static
+        result_df.at[f"Qbest", "tau"] = self.th_off_f1_best
         result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_{qStart}_{qEnd}_{qStep}.csv"))
 
         # plot results w/o TTA
@@ -211,7 +227,9 @@ class Tester:
         plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
         plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
         plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
-        plt.axhline(self.th_best_static, color="C4", label="threshold w/ test data")
+
+        plt.axhline(self.th_off_f1_best, color="C4", label="threshold w/ test data")
+        plt.axhline(self.th_off_f1_best_train, color="C5", label="threshold w/ test data, bound to train stats")
         plt.legend()
         plot_interval(plt, self.gt)
         plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_woTTA.png"))
