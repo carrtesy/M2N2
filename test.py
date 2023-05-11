@@ -92,7 +92,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     # infer
-    cols = ["tau", "Accuracy", "Precision", "Recall", "F1", "tn", "fp", "fn", "tp"]
+    cols = ["tau", "Accuracy", "Precision", "Recall", "F1", "ROC_AUC", "tn", "fp", "fn", "tp"]
     cols += ["Accuracy_PA", "Precision_PA", "Recall_PA", "F1_PA", "tn_PA", "fp_PA", "fn_PA", "tp_PA"]
     result_df = pd.DataFrame([], columns=cols)
     for option in args.infer_options:

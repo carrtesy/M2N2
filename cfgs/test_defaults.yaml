@@ -28,10 +28,12 @@ log_path: ./logs
 output_path: ./outputs
 plot_path: ./plots
 result_path: ./results
-plot_anomaly_scores: True
+plot_anomaly_scores: False
 plot_recon_status: False
-save_result: True
+save_result: True # save result in pandas dataframe
 load_anoscs: True
+save_outputs: False # gt (X.pt) and reconstructed (Xhat.pt)
+save_roc_curve: True # whether to save fpr, tpr, thrs from sklearn.roc_curve
 
 # Model-specific arguments
 defaults:

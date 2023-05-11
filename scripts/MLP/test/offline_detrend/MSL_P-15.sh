@@ -1,0 +1,12 @@
+export CUDA_VISIBLE_DEVICES=$1;
+python test.py dataset=MSL_P-15 window_size=5 stride=5 eval_stride=5 batch_size=8 log_freq=1 normalization=Detrend model=MLP model.latent_dim=16 \
+ gamma=0.6 \
+ infer_options=["offline_detrend_all"] +qStart=0.90 +qEnd=1.00 +qStep=0.01 &&
+
+python test.py dataset=MSL_P-15 window_size=5 stride=5 eval_stride=5 batch_size=8 log_freq=1 normalization=None model=MLP model.latent_dim=16 \
+ gamma=0.6 \
+ infer_options=["offline_detrend_all"] +qStart=0.99 +qEnd=1.00 +qStep=0.001 &&
+
+python test.py dataset=MSL_P-15 window_size=5 stride=5 eval_stride=5 batch_size=8 log_freq=1 normalization=None model=MLP model.latent_dim=16 \
+ gamma=0.6 \
+ infer_options=["offline_detrend_all"] +qStart=0.996 +qEnd=0.997 +qStep=0.0001

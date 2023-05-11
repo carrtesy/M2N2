@@ -1,0 +1,42 @@
+program: test.py
+method: grid
+name: PSM_MLP_online_DT
+project: OnlineTSAD
+entity: carrtesy
+metric:
+  name: F1
+  goal: maximize
+parameters:
+  dataset:
+    value: "PSM"
+  infer_options:
+    value: ["online"]
+  normalization:
+    value: Detrend
+  save_result:
+    value: False
+  gamma:
+    values: [0.1, 0.5, 0.9, 0.999, 0.99999, 1]
+  ttlr:
+    values: [0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005, 0.00001]
+  thresholding:
+    values: [ off_f1_best,
+              q80.0,q81.0,q82.0,q83.0,q84.0,q85.0,q86.0,q87.0,q88.0,q89.0,
+              q80.3,q81.3,q82.3,q83.3,q84.3,q85.3,q86.3,q87.3,q88.3,q89.3,
+              q80.6,q81.6,q82.6,q83.6,q84.6,q85.6,q86.6,q87.6,q88.6,q89.6,
+              q80.9,q81.9,q82.9,q83.9,q84.9,q85.9,q86.9,q87.9,q88.9,q89.9,
+              q90.0,q91.0,q92.0,q93.0,q94.0,q95.0,q96.0,q97.0,q98.0,q99.0,
+              q90.3,q91.3,q92.3,q93.3,q94.3,q95.3,q96.3,q97.3,q98.3,q99.3,
+              q90.6,q91.6,q92.6,q93.6,q94.6,q95.6,q96.6,q97.6,q98.6,q99.6,
+              q90.9,q91.9,q92.9,q93.9,q94.9,q95.9,q96.9,q97.9,q98.9,q99.9,
+              q100
+    ]
+  exp_id:
+    value: default
+
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}

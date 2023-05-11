@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import numpy as np
 from utils.metrics import get_summary_stats
 from utils.tools import plot_interval
+from utils.metrics import calculate_roc_auc
 
 
 
@@ -126,7 +127,7 @@ class MLP_Tester(Tester):
 
 
     @torch.no_grad()
-    def calculate_recon_errors(self, dataloader, save_outputs=False):
+    def calculate_recon_errors(self, dataloader):
         '''
         :return:  returns (B, L, C) recon loss tensor
         '''
@@ -143,7 +144,7 @@ class MLP_Tester(Tester):
             B, L, C = X.shape
             Xhat = self.model(X)
 
-            if save_outputs:
+            if self.args.save_outputs:
                 Xs.append(X)
                 Xhats.append(Xhat)
 
@@ -151,7 +152,8 @@ class MLP_Tester(Tester):
             recon_errors.append(recon_error)
 
         # save recon outputs
-        if save_outputs:
+        if self.args.save_outputs:
+            self.logger.info(f"saving outputs: {self.args.output_path}")
             Xs = torch.cat(Xs, axis=0)
             Xhats = torch.cat(Xhats, axis=0)
             X_path = os.path.join(self.args.output_path, "Xs.pt")
@@ -178,6 +180,7 @@ class MLP_Tester(Tester):
         tau = init_thr
 
         preds = []
+        anomaly_scores = []
         for i, batch_data in enumerate(it):
             X = batch_data[0].to(self.args.device)
             B, L, C = X.shape
@@ -195,47 +198,36 @@ class MLP_Tester(Tester):
 
             # log model outputs
             preds.append(pred.clone().detach())
+            anomaly_scores.append(A.clone().detach())
 
         # outputs
         preds = torch.cat(preds).reshape(-1).detach().cpu().numpy().astype(int)
-        return preds
+        anomaly_scores = torch.cat(anomaly_scores).reshape(-1).detach().cpu().numpy()
+
+        return anomaly_scores, preds
 
 
     def offline_detrend_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
         result_df = pd.DataFrame(columns=cols)
         for q in np.arange(qStart, qEnd + 1e-07, qStep):
             th = np.quantile(self.train_anoscs, min(q, qEnd))
-            pred = self.offline_detrend(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            anoscs, pred = self.offline_detrend(self.test_loader, init_thr=th, normalization=self.args.normalization)
             result = get_summary_stats(self.gt, pred)
+
             self.logger.info(result)
             result_df = pd.concat(
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q * 100:.3f}", "tau"] = th
 
         # off_f1_best
-        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1_best, normalization=self.args.normalization)
+        anoscs, pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1_best, normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
+        roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path,
+                                    save_roc_curve=self.args.save_roc_curve)
+        best_result["ROC_AUC"] = roc_auc
+
         result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
         result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
-
-        # off_f1pa_best
-        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1pa_best, normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1pa_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1pa_best", "tau"] = self.th_off_f1pa_best
-
-        # off_f1_best_train
-        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1_best_train, normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1_best_train", "tau"] = self.th_off_f1_best_train
-
-        # off_f1pa_best_train
-        pred = self.offline_detrend(self.test_loader, init_thr=self.th_off_f1pa_best_train, normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1pa_best_train", "tau"] = self.th_off_f1pa_best_train
-
 
         return result_df
 
@@ -288,11 +280,21 @@ class MLP_Tester(Tester):
 
 
         # outputs
-        Xs = torch.cat(Xs, axis=0).detach().cpu().numpy()
-        Xhats = torch.cat(Xhats, axis=0).detach().cpu().numpy()
+        Xs = torch.cat(Xs, axis=0).detach().cpu()
+        Xhats = torch.cat(Xhats, axis=0).detach().cpu()
         anoscs = torch.cat(As, axis=0).reshape(-1).detach().cpu().numpy()
         thrs = np.repeat(np.array(thrs), self.args.window_size * self.args.eval_batch_size)
         preds = torch.cat(preds).reshape(-1).detach().cpu().numpy().astype(int)
+
+        # save recon outputs
+        if self.args.save_outputs:
+            self.logger.info(f"saving outputs: {self.args.output_path}")
+            X_path = os.path.join(self.args.output_path, "Xs.pt")
+            Xhat_path = os.path.join(self.args.output_path, "Xhats_offline.pt")
+            with open(X_path, 'wb') as f:
+                torch.save(Xs, f)
+            with open(Xhat_path, 'wb') as f:
+                torch.save(Xhats, f)
 
         # save plots
         ## anomaly scores
@@ -327,7 +329,7 @@ class MLP_Tester(Tester):
                 plt.savefig(os.path.join(self.args.plot_path, f"{title}.png"))
                 wandb.log({f"{title}": wandb.Image(plt)})
 
-        return preds
+        return anoscs, preds
 
 
     def online_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
@@ -335,44 +337,26 @@ class MLP_Tester(Tester):
         for q in np.arange(qStart, qEnd + qStep, qStep):
             q = min(q, qEnd)
             th = np.quantile(self.train_anoscs, q)
-            pred = self.online(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            anoscs, pred = self.online(self.test_loader, init_thr=th, normalization=self.args.normalization)
             result = get_summary_stats(self.gt, pred)
+            roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
+            result["ROC_AUC"] = roc_auc
             self.logger.info(result)
             result_df = pd.concat(
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q * 100:.3f}", "tau"] = th
 
         # off_f1_best
-        pred = self.online(self.test_loader, init_thr=self.th_off_f1_best,
+        anoscs, pred = self.online(self.test_loader, init_thr=self.th_off_f1_best,
                                     normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
+
+        roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
+        best_result["ROC_AUC"] = roc_auc
+
         result_df = pd.concat(
             [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
         result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
-
-        # off_f1pa_best
-        pred = self.online(self.test_loader, init_thr=self.th_off_f1pa_best,
-                                    normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat(
-            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1pa_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1pa_best", "tau"] = self.th_off_f1pa_best
-
-        # off_f1_best_train
-        pred = self.online(self.test_loader, init_thr=self.th_off_f1_best_train,
-                                    normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat(
-            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1_best_train", "tau"] = self.th_off_f1_best_train
-
-        # off_f1pa_best_train
-        pred = self.online(self.test_loader, init_thr=self.th_off_f1pa_best_train,
-                                    normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat(
-            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1pa_best_train", "tau"] = self.th_off_f1pa_best_train
 
         return result_df
 
@@ -465,15 +449,18 @@ class MLP_Tester(Tester):
                 plt.savefig(os.path.join(self.args.plot_path, f"{title}.png"))
                 wandb.log({f"{title}": wandb.Image(plt)})
 
-        return preds
+        return anoscs, preds
 
 
     def online_label_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
         result_df = pd.DataFrame(columns=cols)
         for q in np.arange(qStart, qEnd + 1e-07, qStep):
             th = np.quantile(self.train_anoscs, min(q, qEnd))
-            pred = self.online_label(self.test_loader, init_thr=th, normalization=self.args.normalization)
+            anoscs, pred = self.online_label(self.test_loader, init_thr=th, normalization=self.args.normalization)
             result = get_summary_stats(self.gt, pred)
+            roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
+            result["ROC_AUC"] = roc_auc
+
             self.logger.info(result)
 
             result_df = pd.concat(
@@ -482,35 +469,15 @@ class MLP_Tester(Tester):
 
 
         # off_f1_best
-        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1_best,
+        anoscs, pred = self.online_label(self.test_loader, init_thr=self.th_off_f1_best,
                            normalization=self.args.normalization)
         best_result = get_summary_stats(self.gt, pred)
+
+        roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
+        best_result["ROC_AUC"] = roc_auc
+
         result_df = pd.concat(
             [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
         result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
-
-        # off_f1pa_best
-        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1pa_best,
-                           normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat(
-            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1pa_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1pa_best", "tau"] = self.th_off_f1pa_best
-
-        # off_f1_best_train
-        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1_best_train,
-                           normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat(
-            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1_best_train", "tau"] = self.th_off_f1_best_train
-
-        # off_f1pa_best_train
-        pred = self.online_label(self.test_loader, init_thr=self.th_off_f1pa_best_train,
-                           normalization=self.args.normalization)
-        best_result = get_summary_stats(self.gt, pred)
-        result_df = pd.concat(
-            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1pa_best_train", "tau"] = self.th_off_f1pa_best_train
 
         return result_df

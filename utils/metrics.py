@@ -1,6 +1,8 @@
 import copy
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, \
+    confusion_matrix, roc_auc_score, roc_curve, auc
 import numpy as np
+import os
 
 def get_summary_stats(gt, pred):
     '''
@@ -9,23 +11,23 @@ def get_summary_stats(gt, pred):
 
     # filter out -1's (paddings)
     mask = (gt != -1)
-    gt = np.copy(gt)[mask]
-    pred = np.copy(pred)[mask]
+    _gt = np.copy(gt)[mask]
+    _pred = np.copy(pred)[mask]
 
     # Without Adjust
-    acc = accuracy_score(gt, pred)
-    p = precision_score(gt, pred, zero_division=1)
-    r = recall_score(gt, pred, zero_division=1)
-    f1 = f1_score(gt, pred, zero_division=1)
-    tn, fp, fn, tp = confusion_matrix(gt, pred).ravel()
+    acc = accuracy_score(_gt, _pred)
+    p = precision_score(_gt, _pred, zero_division=1)
+    r = recall_score(_gt, _pred, zero_division=1)
+    f1 = f1_score(_gt, _pred, zero_division=1)
+    tn, fp, fn, tp = confusion_matrix(_gt, _pred).ravel()
 
     # Point Adjust
-    pred_PA = PA(gt, pred)
-    acc_PA = accuracy_score(gt, pred_PA)
-    p_PA = precision_score(gt, pred_PA, zero_division=1)
-    r_PA = recall_score(gt, pred_PA, zero_division=1)
-    f1_PA = f1_score(gt, pred_PA, zero_division=1)
-    tn_PA, fp_PA, fn_PA, tp_PA = confusion_matrix(gt, pred_PA).ravel()
+    _pred_PA = PA(_gt, _pred)
+    acc_PA = accuracy_score(_gt, _pred_PA)
+    p_PA = precision_score(_gt, _pred_PA, zero_division=1)
+    r_PA = recall_score(_gt, _pred_PA, zero_division=1)
+    f1_PA = f1_score(_gt, _pred_PA, zero_division=1)
+    tn_PA, fp_PA, fn_PA, tp_PA = confusion_matrix(_gt, _pred_PA).ravel()
 
     result = {
         # non-adjusted metrics
@@ -48,8 +50,31 @@ def get_summary_stats(gt, pred):
         f"fn_PA": fn_PA,
         f"tp_PA": tp_PA,
     }
+
+    del _gt, _pred, _pred_PA
     return result
 
+
+def calculate_roc_auc(gt, anomaly_scores, path, save_roc_curve=False, drop_intermediate=True):
+    # filter out pads
+    mask = (gt != -1)
+    _gt = gt[mask]
+    _anomaly_scores = anomaly_scores[mask]
+
+    # get roc curve
+    fpr, tpr, thr = roc_curve(_gt, _anomaly_scores, drop_intermediate=drop_intermediate)
+    roc_auc = auc(fpr, tpr)
+
+    if save_roc_curve:
+        with open(os.path.join(path, "fpr.npy"), 'wb') as f:
+            np.save(f, fpr)
+        with open(os.path.join(path, "tpr.npy"), 'wb') as f:
+            np.save(f, tpr)
+        with open(os.path.join(path, "thr.npy"), 'wb') as f:
+            np.save(f, thr)
+    del _gt, _anomaly_scores, fpr, tpr, thr
+
+    return roc_auc
 
 
 '''

@@ -61,11 +61,11 @@ def get_best_static_threshold(gt, anomaly_scores, th_ubd=None, th_lbd=None):
 
     # filter out pads
     mask = (gt != -1)
-    gt = np.copy(gt)[mask]
-    anomaly_scores = np.copy(anomaly_scores)[mask]
+    _gt = gt[mask]
+    _anomaly_scores = anomaly_scores[mask]
 
-    P, N = (gt == 1).sum(), (gt == 0).sum()
-    fpr, tpr, thresholds = roc_curve(gt, anomaly_scores, drop_intermediate=False)
+    P, N = (_gt == 1).sum(), (_gt == 0).sum()
+    fpr, tpr, thresholds = roc_curve(_gt, _anomaly_scores, drop_intermediate=False)
 
     # filter with availablity
     if th_ubd:
@@ -83,9 +83,13 @@ def get_best_static_threshold(gt, anomaly_scores, th_ubd=None, th_lbd=None):
     fn = np.array(P - tp, dtype=int)
 
     # precision, recall score from confusion matrix
-    eps = 1e-12
-    precision = tp / np.maximum(tp + fp, eps)
-    recall = tp / np.maximum(tp + fn, eps)
+    # if den is zero, tp will also be zero, and hence result is zero for both precision/recall.
+    den_p = tp+fp
+    den_p[den_p==0] = 1
+    precision = tp / den_p
+    den_r = tp+fn
+    den_r[den_r==0] = 1
+    recall = tp / den_r
 
     # f1 score
     den = precision + recall

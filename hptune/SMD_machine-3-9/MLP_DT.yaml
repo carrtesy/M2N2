@@ -1,0 +1,63 @@
+program: test.py
+method: grid
+name: SMD_machine-3-9_MLP_online_DT_v2
+project: OnlineTSAD
+entity: carrtesy
+metric:
+  name: F1
+  goal: maximize
+parameters:
+  dataset:
+    value: "SMD_machine-3-9"
+  infer_options:
+    value: ["online"]
+  normalization:
+    value: Detrend
+  save_result:
+    value: False
+  window_size:
+    value: 5
+  stride:
+    value: 5
+  eval_stride:
+    value: 5
+  model.latent_dim:
+    value: 16
+  batch_size:
+    value: 8
+  log_freq:
+    value: 1
+  gamma:
+    values: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.99, 0.999]
+  ttlr:
+    values: [0.1, 0.05, 0.01, 0.005, 0.0001, 0.0005, 0.00001]
+  thresholding:
+    values: [q99.91,
+             q99.92,
+             q99.93,
+             q99.94,
+             q99.95,
+             q99.96,
+             q99.97,
+             q99.98,
+             q99.99,
+             q99.991,
+             q99.992,
+             q99.993,
+             q99.994,
+             q99.995,
+             q99.996,
+             q99.997,
+             q99.998,
+             q99.999,
+             q100
+    ]
+  exp_id:
+    value: default
+
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}

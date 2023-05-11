@@ -12,7 +12,9 @@ from utils.tools import plot_interval, get_best_static_threshold
 import wandb
 import pandas as pd
 
-from utils.metrics import PA
+
+from sklearn.metrics import roc_curve, roc_auc_score
+from utils.metrics import calculate_roc_auc
 
 matplotlib.rcParams['agg.path.chunksize'] = 10000
 
@@ -100,12 +102,7 @@ class Tester:
         self.th_q95 = np.quantile(self.train_anoscs, 0.95)
         self.th_q99 = np.quantile(self.train_anoscs, 0.99)
         self.th_q100 = np.quantile(self.train_anoscs, 1.00)
-
         self.th_off_f1_best = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_anoscs)
-        self.th_off_f1pa_best = get_best_static_threshold(gt=self.gt, anomaly_scores=PA(self.gt, self.test_anoscs))
-        self.th_off_f1_best_train = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_anoscs, th_ubd=max(self.train_anoscs), th_lbd=min(self.train_anoscs))
-        self.th_off_f1pa_best_train = get_best_static_threshold(gt=self.gt, anomaly_scores=PA(self.gt, self.test_anoscs), th_ubd=max(self.train_anoscs), th_lbd=min(self.train_anoscs))
-        #self.th_best_static = get_best_static_threshold(gt=self.gt, anomaly_scores=self.test_anoscs)
 
 
     def infer(self, mode, cols):
@@ -119,19 +116,19 @@ class Tester:
             tau = np.quantile(self.train_anoscs, th)
         elif th == "off_f1_best":
             tau = self.th_off_f1_best
-        elif th == "off_f1pa_best":
-            tau = self.th_off_f1pa_best
-        elif th == "off_f1_best_train":
-            tau = self.th_off_f1_best
-        elif th == "off_f1pa_best_train":
-            tau = self.th_off_f1pa_best
         else:
             raise ValueError(f"Thresholding mode {self.args.thresholding} is not supported.")
 
         # get result
         if mode == "offline":
-            pred = self.offline(tau)
+            anoscs, pred = self.offline(tau)
             result = get_summary_stats(gt, pred)
+            roc_auc = calculate_roc_auc(gt, anoscs,
+                                        path=self.args.output_path,
+                                        save_roc_curve=self.args.save_roc_curve,
+                                        drop_intermediate=False
+                                        )
+            result["ROC_AUC"] = roc_auc
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
 
@@ -141,8 +138,15 @@ class Tester:
             )
 
         elif mode == "offline_detrend":
-            pred = self.offline_detrend(tau)
+            anoscs, pred = self.offline_detrend(tau)
             result = get_summary_stats(gt, pred)
+            roc_auc = calculate_roc_auc(gt, anoscs,
+                                        path=self.args.output_path,
+                                        save_roc_curve=self.args.save_roc_curve,
+                                        drop_intermediate=False
+                                        )
+
+            result["ROC_AUC"] = roc_auc
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
@@ -153,8 +157,14 @@ class Tester:
             )
 
         elif mode == "online":
-            pred = self.online(self.test_loader, tau, normalization=self.args.normalization)
+            anoscs, pred = self.online(self.test_loader, tau, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
+            roc_auc = calculate_roc_auc(gt, anoscs,
+                                        path=self.args.output_path,
+                                        save_roc_curve=self.args.save_roc_curve,
+                                        drop_intermediate=False,
+                                        )
+            result["ROC_AUC"] = roc_auc
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
@@ -165,8 +175,13 @@ class Tester:
             )
 
         elif mode == "online_label":
-            pred = self.online_label(self.test_loader, tau, normalization=self.args.normalization)
+            anoscs, pred = self.online_label(self.test_loader, tau, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
+            roc_auc = calculate_roc_auc(gt, anoscs,
+                                        path=self.args.output_path,
+                                        save_roc_curve=self.args.save_roc_curve,
+                                        drop_intermediate=False)
+            result["ROC_AUC"] = roc_auc
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
@@ -177,7 +192,7 @@ class Tester:
             )
 
         if self.args.save_result:
-            filename = f"{self.args.exp_id}_{mode}_{th}.csv" if hasattr(self.args, "qstart") \
+            filename = f"{self.args.exp_id}_{mode}_{th}.csv" if (not hasattr(self.args, "qStart")) \
                 else f"{self.args.exp_id}_{mode}_{self.args.qStart}_{self.args.qEnd}_{self.args.qStep}.csv"
             path = os.path.join(self.args.result_path, filename)
             self.logger.info(f"Saving result to {path}")
@@ -194,15 +209,15 @@ class Tester:
         plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
         plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
         plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
-
         plt.axhline(self.th_off_f1_best, color="C4", label="threshold w/ test data")
-        plt.axhline(self.th_off_f1_best_train, color="C5", label="threshold w/ test data, bound to train stats")
 
         plot_interval(plt, self.gt)
         plt.legend()
         plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_offline.png"))
         wandb.log({f"{self.args.exp_id}_offline": wandb.Image(plt)})
-        return (self.test_anoscs >= tau)
+
+        pred = (self.test_anoscs >= tau)
+        return self.test_anoscs, pred
 
 
     def offline_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
@@ -215,11 +230,15 @@ class Tester:
             result_df = pd.concat([result_df, pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns)])
             result_df.at[f"Q{q*100:.3f}", "tau"] = th
 
-        # threshold with test data
+        # off_f1_best
         best_result = get_summary_stats(self.gt, self.test_anoscs >= self.th_off_f1_best)
-        result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Qbest"], columns=result_df.columns)])
-        result_df.at[f"Qbest", "tau"] = self.th_off_f1_best
-        result_df.to_csv(os.path.join(self.args.result_path, f"{self.args.exp_id}_offline_{qStart}_{qEnd}_{qStep}.csv"))
+        roc_auc = calculate_roc_auc(self.gt, self.test_anoscs, path=self.args.output_path,
+                                    save_roc_curve=self.args.save_roc_curve)
+        best_result["ROC_AUC"] = roc_auc
+
+        result_df = pd.concat(
+            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
+        result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
 
         # plot results w/o TTA
         plt.figure(figsize=(20, 6))
@@ -229,7 +248,6 @@ class Tester:
         plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
 
         plt.axhline(self.th_off_f1_best, color="C4", label="threshold w/ test data")
-        plt.axhline(self.th_off_f1_best_train, color="C5", label="threshold w/ test data, bound to train stats")
         plt.legend()
         plot_interval(plt, self.gt)
         plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_woTTA.png"))

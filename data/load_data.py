@@ -18,16 +18,27 @@ class DataFactory:
             "toyUSW": self.load_toyUSW,
             "NeurIPS-TS-UNI": self.load_NeurIPS_TS_UNI,
             "NeurIPS-TS-MUL": self.load_NeurIPS_TS_MUL,
+
             "SWaT": self.load_SWaT,
             "WADI": self.load_WADI,
-            "PSM": self.load_PSM,
+
             "SMAP_G-1": self.load_SMAP,
             "SMAP_D-13": self.load_SMAP,
-            "SMD_machine-1-4": self.load_SMD,
+            "SMAP_T-3": self.load_SMAP,
             "MSL_P-15": self.load_MSL,
+
+            "SMD_machine-1-4": self.load_SMD,
+            "SMD_machine-2-1": self.load_SMD,
+            "SMD_machine-3-9": self.load_SMD,
+
             "yahoo_20": self.load_yahoo,
-            "Pump": self.load_Pump,
+            "yahoo_55": self.load_yahoo,
+            "yahoo_60": self.load_yahoo,
+
             "CreditCard": self.load_CreditCard,
+
+            "Pump": self.load_Pump,
+            "PSM": self.load_PSM,
         }
 
         self.transforms = {
