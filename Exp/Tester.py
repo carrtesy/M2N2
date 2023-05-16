@@ -138,7 +138,7 @@ class Tester:
             )
 
         elif mode == "offline_detrend":
-            anoscs, pred = self.offline_detrend(tau)
+            anoscs, pred = self.offline_detrend(self.test_loader, tau, normalization=self.args.normalization)
             result = get_summary_stats(gt, pred)
             roc_auc = calculate_roc_auc(gt, anoscs,
                                         path=self.args.output_path,
