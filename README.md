@@ -1,5 +1,4 @@
-# TSAD-on-the-run
-
+# M2N2 (When Model Meets New Normals)
 
 ## Options
 
