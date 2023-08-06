@@ -16,11 +16,11 @@ def prepare_arguments(cfg):
     args = configure_exp_id(args)
 
     # save paths config & make dir
-    args.checkpoint_path = os.path.join(args.checkpoint_path, f"{args.exp_id}")
-    args.log_path = os.path.join(args.log_path, f"{args.exp_id}")
-    args.output_path = os.path.join(args.output_path, f"{args.exp_id}")
-    args.plot_path = os.path.join(args.plot_path, f"{args.exp_id}")
-    args.result_path = os.path.join(args.result_path, f"{args.exp_id}")
+    args.checkpoint_path = os.path.join(args.checkpoint_path, f"{args.exp_id}", f"SEED_{args.SEED}")
+    args.log_path = os.path.join(args.log_path, f"{args.exp_id}", f"SEED_{args.SEED}")
+    args.output_path = os.path.join(args.output_path, f"{args.exp_id}", f"SEED_{args.SEED}")
+    args.plot_path = os.path.join(args.plot_path, f"{args.exp_id}", f"SEED_{args.SEED}")
+    args.result_path = os.path.join(args.result_path, f"{args.exp_id}", f"SEED_{args.SEED}")
 
     os.makedirs(args.checkpoint_path, exist_ok=True)
     os.makedirs(args.log_path, exist_ok=True)

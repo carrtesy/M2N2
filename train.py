@@ -49,9 +49,6 @@ warnings.filterwarnings("ignore")
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="train_defaults")
 def main(cfg: DictConfig) -> None:
-    # SEED
-    SEED_everything(2023)
-
     # prepare arguments
     args = prepare_arguments(cfg)
 
@@ -65,6 +62,10 @@ def main(cfg: DictConfig) -> None:
     logger = make_logger(os.path.join(args.log_path, f'{args.exp_id}_train.log'))
     logger.info("=== TRAINING START ===")
     logger.info(f"Configurations: {args}")
+
+    # SEED
+    SEED_everything(args.SEED)
+    logger.info(f"Experiment with SEED: {args.SEED}")
 
     # Data
     logger.info(f"Preparing {args.dataset} dataset...")

@@ -1,6 +1,6 @@
 import copy
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, \
-    confusion_matrix, roc_auc_score, roc_curve, auc
+    confusion_matrix, roc_curve, auc, precision_recall_curve
 import numpy as np
 import os
 
@@ -75,6 +75,27 @@ def calculate_roc_auc(gt, anomaly_scores, path, save_roc_curve=False, drop_inter
     del _gt, _anomaly_scores, fpr, tpr, thr
 
     return roc_auc
+
+def calculate_pr_auc(gt, anomaly_scores, path, save_pr_curve=False):
+    # filter out pads
+    mask = (gt != -1)
+    _gt = gt[mask]
+    _anomaly_scores = anomaly_scores[mask]
+
+    # get roc curve
+    prec, rec, thr = precision_recall_curve(_gt, _anomaly_scores)
+    pr_auc = auc(rec, prec)
+
+    if save_pr_curve:
+        with open(os.path.join(path, "fpr.npy"), 'wb') as f:
+            np.save(f, prec)
+        with open(os.path.join(path, "tpr.npy"), 'wb') as f:
+            np.save(f, rec)
+        with open(os.path.join(path, "thr_prauc.npy"), 'wb') as f:
+            np.save(f, thr)
+    del _gt, _anomaly_scores, prec, rec, thr
+
+    return pr_auc
 
 
 '''

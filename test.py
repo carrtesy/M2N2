@@ -50,8 +50,6 @@ warnings.filterwarnings("ignore")
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="test_defaults")
 def main(cfg: DictConfig) -> None:
-    # SEED
-    SEED_everything(2023)
 
     # prepare arguments
     args = prepare_arguments(cfg)
@@ -66,6 +64,10 @@ def main(cfg: DictConfig) -> None:
     logger = make_logger(os.path.join(args.log_path, f'{args.exp_id}_test.log'))
     logger.info("=== TESTING START ===")
     logger.info(f"Configurations: {args}")
+
+    # SEED
+    SEED_everything(args.SEED)
+    logger.info(f"Experiment with SEED: {args.SEED}")
 
     # Data
     logger.info(f"Preparing {args.dataset} dataset...")
@@ -89,10 +91,11 @@ def main(cfg: DictConfig) -> None:
         logger=logger,
         train_loader=train_loader,
         test_loader=test_loader,
+        load=True,
     )
 
     # infer
-    cols = ["tau", "Accuracy", "Precision", "Recall", "F1", "ROC_AUC", "tn", "fp", "fn", "tp"]
+    cols = ["tau", "Accuracy", "Precision", "Recall", "F1", "ROC_AUC", "PR_AUC", "tn", "fp", "fn", "tp"]
     cols += ["Accuracy_PA", "Precision_PA", "Recall_PA", "F1_PA", "tn_PA", "fp_PA", "fn_PA", "tp_PA"]
     result_df = pd.DataFrame([], columns=cols)
     for option in args.infer_options:
