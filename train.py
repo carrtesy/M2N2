@@ -32,6 +32,7 @@ from omegaconf import DictConfig
 from utils.logger import make_logger
 from utils.argpass import prepare_arguments
 from utils.tools import SEED_everything
+from utils.secret import WANDB_API_KEY
 
 import warnings
 import os
@@ -53,7 +54,7 @@ def main(cfg: DictConfig) -> None:
     args = prepare_arguments(cfg)
 
     # WANDB
-    wandb.login()
+    wandb.login(key=WANDB_API_KEY)
     WANDB_PROJECT_NAME, WANDB_ENTITY = "OnlineTSAD", "carrtesy"
     wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id)
     wandb.config.update(args)

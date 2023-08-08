@@ -11,3 +11,4 @@
 /result/
 /data/
 *__pycache__*
+/utils/secret.py

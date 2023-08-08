@@ -32,6 +32,7 @@ from omegaconf import DictConfig
 from utils.logger import make_logger
 from utils.argpass import prepare_arguments
 from utils.tools import SEED_everything
+from utils.secret import WANDB_API_KEY
 
 import warnings
 import os
@@ -45,6 +46,9 @@ from Exp.OmniAnomaly import OmniAnomaly_Tester
 from Exp.AnomalyTransformer import AnomalyTransformer_Tester
 
 import pandas as pd
+from vus.utils.slidingWindows import find_length
+from ast import literal_eval
+import json
 
 warnings.filterwarnings("ignore")
 
@@ -55,7 +59,7 @@ def main(cfg: DictConfig) -> None:
     args = prepare_arguments(cfg)
 
     # WANDB
-    wandb.login()
+    wandb.login(key=WANDB_API_KEY)
     WANDB_PROJECT_NAME, WANDB_ENTITY = "OnlineTSAD", "carrtesy"
     wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id)
     wandb.config.update(args)
@@ -74,6 +78,11 @@ def main(cfg: DictConfig) -> None:
     datafactory = DataFactory(args, logger)
     train_dataset, train_loader, test_dataset, test_loader = datafactory()
     args.num_channels = train_dataset.X.shape[1]
+
+    # sliding window estimate for range-based metrics
+    sliding_windows = [find_length(train_dataset.X[:, c]) for c in range(args.num_channels)]
+    args.range_window_size = max(sliding_windows)
+    logger.info(f"sliding window for estimating range-based metrics: {args.range_window_size}")
 
     # Model
     logger.info(f"Loading pre-trained {args.model.name} model...")
@@ -95,8 +104,9 @@ def main(cfg: DictConfig) -> None:
     )
 
     # infer
-    cols = ["tau", "Accuracy", "Precision", "Recall", "F1", "ROC_AUC", "PR_AUC", "tn", "fp", "fn", "tp"]
+    cols = ["tau", "Accuracy", "Precision", "Recall", "F1",  "tn", "fp", "fn", "tp"]
     cols += ["Accuracy_PA", "Precision_PA", "Recall_PA", "F1_PA", "tn_PA", "fp_PA", "fn_PA", "tp_PA"]
+    cols += ["ROC_AUC", "PR_AUC", "R_AUC_ROC", "R_AUC_PR", "VUS_ROC", "VUS_PR"]
     result_df = pd.DataFrame([], columns=cols)
     for option in args.infer_options:
         result = tester.infer(mode=option, cols=cols)
