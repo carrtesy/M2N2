@@ -10,12 +10,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from models.Normalizer import Detrender
 
 class THOC(nn.Module):
-    def __init__(self, C, W, n_hidden, tau=1, device="cpu"):
+    def __init__(self, C, W, n_hidden, tau=1, device="cpu", gamma=0.9, normalization="None"):
         super(THOC, self).__init__()
         self.device = device
         self.C, self.W = C, W
+        self.normalization = normalization
         #self.L = math.floor(math.log(W, 2)) + 1 # number of DRNN layers
         self.L = 3
         self.tau = 1
@@ -48,6 +50,12 @@ class THOC(nn.Module):
             nn.Linear(n_hidden, C) for _ in range(self.L)
         ])
 
+        if self.normalization == "Detrend":
+            self.use_normalizer = True
+            self.normalizer = Detrender(C, gamma=gamma)
+        else:
+            self.use_normalizer = False
+
 
     def forward(self, X):
         '''
@@ -55,6 +63,10 @@ class THOC(nn.Module):
         :return: Losses,
         '''
         B, W, C = X.shape
+
+        if self.use_normalizer:
+            X = self.normalizer(X, "norm")
+
         MTF_output = self.DRNN(X) # Multiscale Temporal Features from dilated RNN.
 
         # THOC

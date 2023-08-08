@@ -3,6 +3,7 @@ exp_id: default
 infer_options: [
   "offline_all",
 ]
+SEED: 2023
 
 # thresholding
 thresholding: q95.0
@@ -34,6 +35,8 @@ save_result: True # save result in pandas dataframe
 load_anoscs: True
 save_outputs: False # gt (X.pt) and reconstructed (Xhat.pt)
 save_roc_curve: False # whether to save fpr, tpr, thrs from sklearn.roc_curve
+save_pr_curve: False # whether to save prec, rec, thrs_prc from sklearn.roc_curve
+
 
 # Model-specific arguments
 defaults:

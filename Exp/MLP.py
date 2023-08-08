@@ -17,8 +17,8 @@ import torch.nn.functional as F
 import numpy as np
 from utils.metrics import get_summary_stats
 from utils.tools import plot_interval
-from utils.metrics import calculate_roc_auc
-
+from utils.metrics import calculate_roc_auc, calculate_pr_auc
+from vus.metrics import get_range_vus_roc
 
 
 class MLP_Trainer(Trainer):
@@ -99,7 +99,7 @@ class MLP_Trainer(Trainer):
 
 
 class MLP_Tester(Tester):
-    def __init__(self, args, logger, train_loader, test_loader):
+    def __init__(self, args, logger, train_loader, test_loader, load=False):
         super(MLP_Tester, self).__init__(
             args=args,
             logger=logger,
@@ -115,8 +115,9 @@ class MLP_Tester(Tester):
             normalization=args.normalization,
         ).to(self.args.device)
 
-        self.load_trained_model()
-        self.prepare_stats()
+        if load:
+            self.load_trained_model()
+            self.prepare_stats()
 
 
     @torch.no_grad()
@@ -157,7 +158,7 @@ class MLP_Tester(Tester):
             Xs = torch.cat(Xs, axis=0)
             Xhats = torch.cat(Xhats, axis=0)
             X_path = os.path.join(self.args.output_path, "Xs.pt")
-            Xhat_path = os.path.join(self.args.output_path, "Xhats_offline.pt")
+            Xhat_path = os.path.join(self.args.output_path, "Xhats.pt")
             with open(X_path, 'wb') as f:
                 torch.save(Xs, f)
             with open(Xhat_path, 'wb') as f:
@@ -181,6 +182,8 @@ class MLP_Tester(Tester):
 
         preds = []
         anomaly_scores = []
+        Xs, Xhats = [], []
+        mus = []
         for i, batch_data in enumerate(it):
             X = batch_data[0].to(self.args.device)
             B, L, C = X.shape
@@ -196,6 +199,11 @@ class MLP_Tester(Tester):
             ytilde = (A >= tau).float()
             pred = ytilde
 
+            if self.args.save_outputs:
+                Xs.append(X)
+                Xhats.append(Xhat)
+                mus.append(self.model.normalizer.mean.clone())
+
             # log model outputs
             preds.append(pred.clone().detach())
             anomaly_scores.append(A.clone().detach())
@@ -203,6 +211,24 @@ class MLP_Tester(Tester):
         # outputs
         preds = torch.cat(preds).reshape(-1).detach().cpu().numpy().astype(int)
         anomaly_scores = torch.cat(anomaly_scores).reshape(-1).detach().cpu().numpy()
+
+        # save recon outputs
+        if self.args.save_outputs:
+            self.logger.info(f"saving outputs: {self.args.output_path}")
+            Xs = torch.cat(Xs, axis=0)
+            Xhats = torch.cat(Xhats, axis=0)
+            mus = torch.cat(mus, axis=0)
+            X_path = os.path.join(self.args.output_path, "Xs.pt")
+            Xhat_path = os.path.join(self.args.output_path, "Xhats_off.pt")
+            mu_path = os.path.join(self.args.output_path, "mus_off.pt")
+
+            with open(X_path, 'wb') as f:
+                torch.save(Xs, f)
+            with open(Xhat_path, 'wb') as f:
+                torch.save(Xhats, f)
+            with open(mu_path, 'wb') as f:
+                torch.save(mus, f)
+
 
         return anomaly_scores, preds
 
@@ -225,6 +251,14 @@ class MLP_Tester(Tester):
         roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path,
                                     save_roc_curve=self.args.save_roc_curve)
         best_result["ROC_AUC"] = roc_auc
+        pr_auc = calculate_pr_auc(self.gt, anoscs,
+                                  path=self.args.output_path,
+                                  save_pr_curve=self.args.save_pr_curve,
+                                  )
+        best_result["PR_AUC"] = pr_auc
+
+        range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
+        result.update(range_metrics)
 
         result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
         result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
@@ -290,11 +324,14 @@ class MLP_Tester(Tester):
         if self.args.save_outputs:
             self.logger.info(f"saving outputs: {self.args.output_path}")
             X_path = os.path.join(self.args.output_path, "Xs.pt")
-            Xhat_path = os.path.join(self.args.output_path, "Xhats_offline.pt")
+            Xhat_path = os.path.join(self.args.output_path, "Xhats_on.pt")
+            tta_anosc_path = os.path.join(self.args.output_path, "tta_anosc.pt")
             with open(X_path, 'wb') as f:
                 torch.save(Xs, f)
             with open(Xhat_path, 'wb') as f:
                 torch.save(Xhats, f)
+            with open(tta_anosc_path, 'wb') as f:
+                torch.save(anoscs, f)
 
         # save plots
         ## anomaly scores
@@ -341,6 +378,15 @@ class MLP_Tester(Tester):
             result = get_summary_stats(self.gt, pred)
             roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
             result["ROC_AUC"] = roc_auc
+            pr_auc = calculate_pr_auc(self.gt, anoscs,
+                                      path=self.args.output_path,
+                                      save_pr_curve=self.args.save_pr_curve,
+                                      )
+            result["PR_AUC"] = pr_auc
+
+            range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
+            result.update(range_metrics)
+
             self.logger.info(result)
             result_df = pd.concat(
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
@@ -353,6 +399,14 @@ class MLP_Tester(Tester):
 
         roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
         best_result["ROC_AUC"] = roc_auc
+        pr_auc = calculate_pr_auc(self.gt, anoscs,
+                                  path=self.args.output_path,
+                                  save_pr_curve=self.args.save_pr_curve,
+                                  )
+        best_result["PR_AUC"] = pr_auc
+
+        range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
+        result.update(range_metrics)
 
         result_df = pd.concat(
             [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
@@ -460,6 +514,14 @@ class MLP_Tester(Tester):
             result = get_summary_stats(self.gt, pred)
             roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
             result["ROC_AUC"] = roc_auc
+            pr_auc = calculate_pr_auc(self.gt, anoscs,
+                                      path=self.args.output_path,
+                                      save_pr_curve=self.args.save_pr_curve,
+                                      )
+            result["PR_AUC"] = pr_auc
+
+            range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
+            result.update(range_metrics)
 
             self.logger.info(result)
 
@@ -475,6 +537,14 @@ class MLP_Tester(Tester):
 
         roc_auc = calculate_roc_auc(self.gt, anoscs, path=self.args.output_path, save_roc_curve=self.args.save_roc_curve)
         best_result["ROC_AUC"] = roc_auc
+        pr_auc = calculate_pr_auc(self.gt, anoscs,
+                                  path=self.args.output_path,
+                                  save_pr_curve=self.args.save_pr_curve,
+                                  )
+        best_result["PR_AUC"] = pr_auc
+
+        range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
+        result.update(range_metrics)
 
         result_df = pd.concat(
             [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])

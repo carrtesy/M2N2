@@ -1,5 +1,6 @@
 # Exp ID
 exp_id: default
+SEED: 2023
 
 # Data Preprocessing
 dataset: SWaT

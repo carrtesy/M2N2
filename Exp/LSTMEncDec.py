@@ -89,7 +89,7 @@ class LSTMEncDec_Trainer(Trainer):
 
 
 class LSTMEncDec_Tester(Tester):
-    def __init__(self, args, logger, train_loader, test_loader):
+    def __init__(self, args, logger, train_loader, test_loader, load=False):
         super(LSTMEncDec_Tester, self).__init__(args=args, logger=logger, train_loader=train_loader, test_loader=test_loader)
 
         self.model = LSTMEncDec(
@@ -100,8 +100,9 @@ class LSTMEncDec_Tester(Tester):
             dropout=self.args.model.dropout,
         ).to(self.args.device)
 
-        self.load_trained_model()
-        self.prepare_stats()
+        if load:
+            self.load_trained_model()
+            self.prepare_stats()
 
 
     def _process_batch(self, batch_data):

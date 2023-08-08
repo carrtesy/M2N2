@@ -98,6 +98,8 @@ def calculate_pr_auc(gt, anomaly_scores, path, save_pr_curve=False):
     return pr_auc
 
 
+
+
 '''
 Point-Adjust
 https://github.com/thuml/Anomaly-Transformer/blob/main/solver.py

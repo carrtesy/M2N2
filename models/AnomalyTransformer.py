@@ -16,7 +16,7 @@ import torch.nn.functional as F
 
 
 class AnomalyTransformer(nn.Module):
-    def __init__(self, win_size, enc_in, c_out, d_model=512, n_heads=8, e_layers=3, d_ff=512,
+    def __init__(self, win_size, enc_in, c_out, d_model=128, n_heads=8, e_layers=3, d_ff=128,
                  dropout=0.0, activation='gelu', output_attention=True):
         super(AnomalyTransformer, self).__init__()
         self.output_attention = output_attention

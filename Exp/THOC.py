@@ -89,7 +89,7 @@ class THOC_Trainer(Trainer):
 
 
 class THOC_Tester(Tester):
-    def __init__(self, args, logger, train_loader, test_loader):
+    def __init__(self, args, logger, train_loader, test_loader, load=False):
         super(THOC_Tester, self).__init__(
             args=args,
             logger=logger,
@@ -104,8 +104,9 @@ class THOC_Tester(Tester):
             device=self.args.device
         ).to(self.args.device)
 
-        self.load_trained_model()
-        self.prepare_stats()
+        if load:
+            self.load_trained_model()
+            self.prepare_stats()
 
 
     @torch.no_grad()
@@ -128,3 +129,51 @@ class THOC_Tester(Tester):
         init_pred = anomaly_scores[0].repeat(self.args.window_size - 1)
         anomaly_scores = torch.cat((init_pred, anomaly_scores)).cpu().numpy()
         return anomaly_scores
+
+
+    def online(self, dataloader, init_thr, normalization="None"):
+        self.load_trained_model()  # reset
+
+        it = tqdm(
+            dataloader,
+            total=len(dataloader),
+            desc="inference",
+            leave=True
+        )
+
+        tau = init_thr
+        TT_optimizer = torch.optim.SGD([p for p in self.model.parameters()], lr=self.args.ttlr)
+
+        anoscs = []
+        preds = []
+
+        for i, batch_data in enumerate(it):
+            X = batch_data[0].to(self.args.device)
+            B, L, C = X.shape
+
+            # Update of test-time statistics.
+            if normalization == "Detrend":
+                self.model.normalizer._update_statistics(X)
+
+            # inference
+            anomaly_score, loss_dict = self.model(X)
+            ytilde = (anomaly_score >= tau).float()
+            pred = ytilde
+            mask = (ytilde == 0)
+
+            # log model outputs
+            anoscs.append(anomaly_score)
+            preds.append(pred.clone().detach())
+
+            # learn new-normals
+            TT_optimizer.zero_grad()
+            mask = (ytilde == 0)
+            loss = mask*(loss_dict["L_THOC"] + self.args.model.LAMBDA_orth * loss_dict[
+                "L_orth"] + self.args.model.LAMBDA_TSS * loss_dict["L_TSS"])
+            loss.backward()
+            TT_optimizer.step()
+
+        init_pred = anoscs[0].repeat(self.args.window_size - 1)
+        anoscs = torch.cat((init_pred, anoscs)).cpu().numpy()
+
+        return anoscs, preds

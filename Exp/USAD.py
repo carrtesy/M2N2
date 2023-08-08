@@ -105,7 +105,7 @@ class USAD_Trainer(Trainer):
 
 
 class USAD_Tester(Tester):
-    def __init__(self, args, logger, train_loader, test_loader):
+    def __init__(self, args, logger, train_loader, test_loader, load=False):
         super(USAD_Tester, self).__init__(
             args=args,
             logger=logger,
@@ -118,8 +118,9 @@ class USAD_Tester(Tester):
             latent_space_size=args.model.latent_dim,
         ).to(self.args.device)
 
-        self.load_trained_model()
-        self.prepare_stats()
+        if load:
+            self.load_trained_model()
+            self.prepare_stats()
 
 
     @torch.no_grad()

@@ -97,7 +97,7 @@ class AnomalyTransformer_Trainer(Trainer):
 
 
 class AnomalyTransformer_Tester(Tester):
-    def __init__(self, args, logger, train_loader, test_loader):
+    def __init__(self, args, logger, train_loader, test_loader, load=False):
         super(AnomalyTransformer_Tester, self).__init__(args=args, logger=logger, train_loader=train_loader, test_loader=test_loader)
         self.model = AnomalyTransformer(
             win_size=self.args.window_size,
@@ -107,8 +107,9 @@ class AnomalyTransformer_Tester(Tester):
         ).to(self.args.device)
         self.criterion = nn.MSELoss()
 
-        self.load_trained_model()
-        self.prepare_stats()
+        if load:
+            self.load_trained_model()
+            self.prepare_stats()
 
 
 

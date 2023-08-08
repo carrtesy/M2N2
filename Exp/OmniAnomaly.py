@@ -100,7 +100,7 @@ class OmniAnomaly_Trainer(Trainer):
 
 
 class OmniAnomaly_Tester(Tester):
-    def __init__(self, args, logger, train_loader, test_loader):
+    def __init__(self, args, logger, train_loader, test_loader, load=False):
         super(OmniAnomaly_Tester, self).__init__(
             args=args,
             logger=logger,
@@ -117,8 +117,9 @@ class OmniAnomaly_Tester(Tester):
             K=self.args.model.K,
         ).to(self.args.device)
 
-        self.load_trained_model()
-        self.prepare_stats()
+        if load:
+            self.load_trained_model()
+            self.prepare_stats()
 
 
     @torch.no_grad()

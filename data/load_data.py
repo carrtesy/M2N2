@@ -7,6 +7,9 @@ import ast
 
 from torch.utils.data import DataLoader, Dataset
 from sklearn import preprocessing
+import data.load_anoshift as la
+import pickle
+import gc
 
 class DataFactory:
     def __init__(self, args, logger):
@@ -15,30 +18,20 @@ class DataFactory:
         self.logger.info(f"current location: {os.getcwd()}")
 
         self.dataset_fn_dict = {
+            # Synthetic dataset
             "toyUSW": self.load_toyUSW,
             "NeurIPS-TS-UNI": self.load_NeurIPS_TS_UNI,
             "NeurIPS-TS-MUL": self.load_NeurIPS_TS_MUL,
 
+            # Real Dataset
             "SWaT": self.load_SWaT,
             "WADI": self.load_WADI,
-
-            "SMAP_G-1": self.load_SMAP,
-            "SMAP_D-13": self.load_SMAP,
-            "SMAP_T-3": self.load_SMAP,
-            "MSL_P-15": self.load_MSL,
-
-            "SMD_machine-1-4": self.load_SMD,
-            "SMD_machine-2-1": self.load_SMD,
-            "SMD_machine-3-9": self.load_SMD,
-
-            "yahoo_20": self.load_yahoo,
-            "yahoo_55": self.load_yahoo,
-            "yahoo_60": self.load_yahoo,
-
+            "SMAP": self.load_SMAP,
+            "MSL": self.load_MSL,
+            "SMD": self.load_SMD,
+            "yahoo":self.load_yahoo,
             "CreditCard": self.load_CreditCard,
-
-            "Pump": self.load_Pump,
-            "PSM": self.load_PSM,
+            "Anoshift": self.load_Anoshift,
         }
 
         self.transforms = {
@@ -89,20 +82,15 @@ class DataFactory:
 
 
     def load(self):
-        if "SMAP" in self.args.dataset:
-            data, chan_id = self.args.dataset.split("_")
-            return self.dataset_fn_dict[self.args.dataset](chan_id)
-        elif "MSL" in self.args.dataset:
-            data, chan_id = self.args.dataset.split("_")
-            return self.dataset_fn_dict[self.args.dataset](chan_id)
-        elif "SMD" in self.args.dataset:
-            data, machine_id = self.args.dataset.split("_")
-            return self.dataset_fn_dict[self.args.dataset](machine_id)
-        elif "yahoo" in self.args.dataset:
-            data, idx = self.args.dataset.split("_")
-            return self.dataset_fn_dict[self.args.dataset](idx)
+        if self.args.dataset not in self.dataset_fn_dict.keys():
+            raise ValueError(f"{self.args.dataset} dataset does not exist.\nList of available datasets: {self.dataset_fn_dict.keys()}")
         else:
-            return self.dataset_fn_dict[self.args.dataset]()
+            if self.args.dataset in ["SMAP", "MSL", "SMD", "yahoo"]:
+                if not hasattr(self.args, "dataset_id"):
+                    raise ValueError(f"Argument --dataset_id should be given to {self.args.dataset} dataset.")
+                return self.dataset_fn_dict[self.args.dataset](self.args.dataset_id)
+            else:
+                return self.dataset_fn_dict[self.args.dataset]()
 
 
     def prepare(self, train_X, train_y, test_X, test_y,
@@ -203,6 +191,41 @@ class DataFactory:
 
         return train_X, train_y, test_X, test_y
 
+    @staticmethod
+    def load_Anoshift():
+        data_dir = "data/Kyoto-2016_AnoShift"
+        train_years = [2006, 2007, 2008, 2009, 2010]
+        test_years = [2011, 2012, 2013, 2014, 2015]
+
+        train_X = []
+        train_y = []
+
+        for year in train_years:
+            X = np.load(os.path.join(data_dir, "preprocessed", f"{year}.npy"))
+            y = np.load(os.path.join(data_dir, "preprocessed", f"{year}_label.npy"))
+            train_X.append(X)
+            train_y.append(y)
+
+        train_X = np.concatenate(train_X)
+        train_y = np.concatenate(train_y)
+
+        test_X = []
+        test_y = []
+
+        for year in test_years:
+            X = np.load(os.path.join(data_dir, "preprocessed", f"{year}.npy"))
+            y = np.load(os.path.join(data_dir, "preprocessed", f"{year}_label.npy"))
+            test_X.append(X)
+            test_y.append(y)
+
+        test_X = np.concatenate(test_X)
+        test_y = np.concatenate(test_y)
+
+        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
+        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
+
+        return train_X, train_y, test_X, test_y
+
 
     @staticmethod
     def load_SWaT():
@@ -269,62 +292,6 @@ class DataFactory:
 
         train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
         train_y, test_y = train_y.astype(int), test_y.astype(int)
-
-        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
-        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
-
-        return train_X, train_y, test_X, test_y
-
-
-    @staticmethod
-    def load_PSM():
-        PSM_PATH = os.path.join("data", "PSM")
-
-        df_train_X = pd.read_csv(os.path.join(PSM_PATH, "train.csv"), index_col=0)
-        df_train_X.fillna(method='ffill', inplace=True)
-        df_train_X.fillna(method='bfill', inplace=True)
-        df_train_X.dropna(axis='columns', inplace=True)  # drop null columns
-
-        df_test_X = pd.read_csv(os.path.join(PSM_PATH, "test.csv"), index_col=0)
-        df_test_X.fillna(method='ffill', inplace=True)
-        df_test_X.fillna(method='bfill', inplace=True)
-        df_test_X.dropna(axis='columns', inplace=True)  # drop null columns
-
-        train_X = df_train_X.values.astype(np.float32)
-        test_X = df_test_X.values.astype(np.float32)
-        T, C = train_X.shape
-        train_y = np.zeros((T,), dtype=int)
-        df_test_y = pd.read_csv(os.path.join(PSM_PATH, "test_label.csv"), index_col=0)
-        test_y = df_test_y.values.astype(int).reshape(-1)
-
-        train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
-        train_y, test_y = train_y.astype(int), test_y.astype(int)
-
-        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
-        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
-
-        return train_X, train_y, test_X, test_y
-
-
-    @staticmethod
-    def load_Pump():
-        data_df = pd.read_csv("data/Pump/sensor.csv", index_col=0)
-        data_df = data_df.drop(["sensor_15","sensor_50"], axis=1) # delete data with nan values
-
-        N = len(data_df)
-        df_train = data_df[:N//2]
-        df_test = data_df[N//2:]
-
-        df_train.fillna(method="ffill", inplace=True)
-        df_train.fillna(method="bfill", inplace=True)
-        df_test.fillna(method="ffill", inplace=True)
-        df_test.fillna(method="bfill", inplace=True)
-
-        train_X = df_train.values[:,1:-1].astype(np.float32)
-        test_X = df_test.values[:,1:-1].astype(np.float32)
-        T, C = train_X.shape
-        train_y = np.zeros((T, ), dtype=int)
-        test_y = (df_test["machine_status"] != "NORMAL").to_numpy().astype(int)
 
         assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
         assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
@@ -402,10 +369,10 @@ class DataFactory:
         return train_X, train_y, test_X, test_y
 
     @staticmethod
-    def load_yahoo(idx):
-        base_dir = "data/yahoo"
+    def load_yahoo(fname):
+        base_dir = "data/yahoo/A1Benchmark"
 
-        data = pd.read_csv(os.path.join(base_dir, f"{idx}.csv"))
+        data = pd.read_csv(os.path.join(base_dir, f"{fname}.csv"))
         X = data["value"].values[:, None]
         label = data["is_anomaly"].values
 

@@ -12,9 +12,13 @@ from utils.tools import plot_interval, get_best_static_threshold
 import wandb
 import pandas as pd
 
+import json
+from ast import literal_eval
 
 from sklearn.metrics import roc_curve, roc_auc_score
-from utils.metrics import calculate_roc_auc
+from utils.metrics import calculate_roc_auc, calculate_pr_auc
+from vus.metrics import get_range_vus_roc
+
 
 matplotlib.rcParams['agg.path.chunksize'] = 10000
 
@@ -128,7 +132,16 @@ class Tester:
                                         save_roc_curve=self.args.save_roc_curve,
                                         drop_intermediate=False
                                         )
+            pr_auc = calculate_pr_auc(gt, anoscs,
+                                      path=self.args.output_path,
+                                      save_pr_curve=self.args.save_pr_curve,
+                                      )
             result["ROC_AUC"] = roc_auc
+            result["PR_AUC"] = pr_auc
+
+            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
+            result.update(range_metrics)
+
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
 
@@ -147,6 +160,15 @@ class Tester:
                                         )
 
             result["ROC_AUC"] = roc_auc
+            pr_auc = calculate_pr_auc(gt, anoscs,
+                                      path=self.args.output_path,
+                                      save_pr_curve=self.args.save_pr_curve,
+                                      )
+            result["PR_AUC"] = pr_auc
+
+            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
+            result.update(range_metrics)
+
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
@@ -165,6 +187,16 @@ class Tester:
                                         drop_intermediate=False,
                                         )
             result["ROC_AUC"] = roc_auc
+
+            pr_auc = calculate_pr_auc(gt, anoscs,
+                                      path=self.args.output_path,
+                                      save_pr_curve=self.args.save_pr_curve,
+                                      )
+            result["PR_AUC"] = pr_auc
+
+            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
+            result.update(range_metrics)
+
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
@@ -182,6 +214,16 @@ class Tester:
                                         save_roc_curve=self.args.save_roc_curve,
                                         drop_intermediate=False)
             result["ROC_AUC"] = roc_auc
+
+            pr_auc = calculate_pr_auc(gt, anoscs,
+                                      path=self.args.output_path,
+                                      save_pr_curve=self.args.save_pr_curve,
+                                      )
+            result["PR_AUC"] = pr_auc
+
+            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
+            result.update(range_metrics)
+
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
@@ -192,19 +234,31 @@ class Tester:
             )
 
         if self.args.save_result:
-            filename = f"{self.args.exp_id}_{mode}_{th}.csv" if (not hasattr(self.args, "qStart")) \
-                else f"{self.args.exp_id}_{mode}_{self.args.qStart}_{self.args.qEnd}_{self.args.qStep}.csv"
-            path = os.path.join(self.args.result_path, filename)
-            self.logger.info(f"Saving result to {path}")
+            filename = f"{self.args.exp_id}_{mode}_{th}" if (not hasattr(self.args, "qStart")) \
+                else f"{self.args.exp_id}_{mode}_{self.args.qStart}_{self.args.qEnd}_{self.args.qStep}"
+            path = os.path.join(self.args.result_path, filename+".csv")
+            self.logger.info(f"Saving dataframe to {path}")
             result_df.to_csv(path)
+
+            if len(result_df) == 1:
+                result_dict = literal_eval(result_df.reset_index(drop=True).to_json(orient="index"))['0']
+                # save as unique id
+                with open(os.path.join(self.args.result_path, filename+".json"), "w") as f:
+                    self.logger.info(f"Saving json to {path}")
+                    json.dump(result_dict, f)
+                # save as "result.json", for convenience
+                with open(os.path.join(self.args.result_path, "result.json"), "w") as f:
+                    json.dump(result_dict, f)
 
         self.logger.info(f"{mode} \n {result_df.to_string()}")
         return result_df
 
 
     def offline(self, tau):
+        pred = (self.test_anoscs >= tau)
+
         # plot results
-        plt.figure(figsize=(20, 6))
+        plt.figure(figsize=(20, 6), dpi=500)
         plt.plot(self.test_anoscs, color="blue", label="anomaly score w/o online learning")
         plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
         plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
@@ -212,11 +266,11 @@ class Tester:
         plt.axhline(self.th_off_f1_best, color="C4", label="threshold w/ test data")
 
         plot_interval(plt, self.gt)
+        plot_interval(plt, pred, facecolor="gray")
         plt.legend()
         plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_offline.png"))
         wandb.log({f"{self.args.exp_id}_offline": wandb.Image(plt)})
 
-        pred = (self.test_anoscs >= tau)
         return self.test_anoscs, pred
 
 
@@ -235,6 +289,14 @@ class Tester:
         roc_auc = calculate_roc_auc(self.gt, self.test_anoscs, path=self.args.output_path,
                                     save_roc_curve=self.args.save_roc_curve)
         best_result["ROC_AUC"] = roc_auc
+        pr_auc = calculate_pr_auc(self.gt, self.test_anoscs,
+                                  path=self.args.output_path,
+                                  save_pr_curve=self.args.save_pr_curve,
+                                  )
+        result["PR_AUC"] = pr_auc
+
+        range_metrics = get_range_vus_roc(score=self.test_anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
+        result.update(range_metrics)
 
         result_df = pd.concat(
             [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
