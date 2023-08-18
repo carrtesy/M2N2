@@ -5,20 +5,22 @@ import scipy.stats as st
 import pandas as pd
 import sys
 
+result_dir = "./results"
 path = sys.argv[1]
+filename = sys.argv[2]
+id = f"{path}_{filename}"
 
 conf = 0.95
-exps = [d for d in os.listdir(path) if "SEED" in d]
+exps = [d for d in os.listdir(os.path.join(result_dir, path)) if "SEED" in d]
 print(f"exps: {exps}")
 
 final_results = {
-    "samples": len(exps),
-    "confidence": conf,
+    "seeds": exps,
     "results": {},
 }
 
 for d in exps:
-    with open(os.path.join(path, d, "result.json"), 'r') as f:
+    with open(os.path.join(result_dir, path, d, f"{id}.json"), 'r') as f:
         result = json.load(f)
 
     for k in result:
@@ -27,18 +29,26 @@ for d in exps:
         else:
             final_results["results"][k] = [result[k]]
 
-with open(os.path.join(path, "combined_results.json"), "w") as f:
+# combined results
+with open(os.path.join(result_dir, path, f"{id}_combined_results.json"), "w") as f:
     json.dump(final_results, f)
-print("combined: ", final_results)
+#print("combined: ", final_results)
+print("F1", final_results["results"]["F1"])
+print("AUROC", final_results["results"]["ROC_AUC"])
 
 for k in final_results["results"]:
     data = final_results["results"][k]
     mean, std = np.mean(data), np.std(data)
     final_results["results"][k] = (mean, std)
-with open(os.path.join(path, "errorbar.json"), "w") as f:
+
+# error bar
+with open(os.path.join(result_dir, path, f"{id}_errorbar.json"), "w") as f:
     json.dump(final_results, f)
-print("error bar:", final_results)
+#print("error bar:", final_results)
 
 df = pd.DataFrame(final_results["results"])
 final_results_df = pd.DataFrame(df.iloc[0].apply(lambda x: f"{x:.3f}") + " $\pm$ " + df.iloc[1].apply(lambda x: f"{x:.3f}")).transpose()
-final_results_df.to_csv(os.path.join(path, "final_results.csv"))
+final_results_df.to_csv(os.path.join(result_dir, path, f"{id}_final_results.csv"))
+
+print("F1", final_results["results"]["F1"])
+print("AUROC", final_results["results"]["ROC_AUC"])
