@@ -29,7 +29,7 @@ do
    normalization=Detrend \
    ttlr=0.005 \
    gamma=0.99999 \
-   infer_options=["online"] thresholding=q99.6 &&
+   infer_options=["online"] thresholding=q99.56 &&
   CUDA_VISIBLE_DEVICES=$1 python test.py SEED=$SEED dataset=SWaT save_outputs=True window_size=12 stride=12 eval_stride=12 model=MLP model.latent_dim=128 \
    normalization=Detrend \
    ttlr=0.005 \

@@ -1,2 +1,5 @@
 name: MLP
 latent_dim: 128
+use_sigmoid_output: False
+use_batchnorm: False
+use_dropout: False

@@ -18,7 +18,7 @@ import numpy as np
 from utils.metrics import get_summary_stats
 from utils.tools import plot_interval
 from utils.metrics import calculate_roc_auc, calculate_pr_auc
-from vus.metrics import get_range_vus_roc
+# from vus.metrics import get_range_vus_roc
 
 
 class MLP_Trainer(Trainer):
@@ -35,9 +35,12 @@ class MLP_Trainer(Trainer):
             latent_space_size=args.model.latent_dim,
             gamma=args.gamma,
             normalization=args.normalization,
+            use_sigmoid_output=args.model.use_sigmoid_output,
+            use_dropout=args.model.use_dropout,
+            use_batchnorm=args.model.use_batchnorm,
         ).to(self.args.device)
 
-        self.optimizer = torch.optim.Adam(params=self.model.parameters(), lr=args.lr)
+        self.optimizer = torch.optim.AdamW(params=self.model.parameters(), lr=args.lr, weight_decay=self.args.L2_reg)
         self.logger.info(f"\n{self.model}")
 
 
@@ -113,6 +116,9 @@ class MLP_Tester(Tester):
             latent_space_size=args.model.latent_dim,
             gamma=args.gamma,
             normalization=args.normalization,
+            use_sigmoid_output=args.model.use_sigmoid_output,
+            use_dropout=args.model.use_dropout,
+            use_batchnorm=args.model.use_batchnorm,
         ).to(self.args.device)
 
         if load:
@@ -123,7 +129,8 @@ class MLP_Tester(Tester):
     @torch.no_grad()
     def calculate_anomaly_scores(self, dataloader):
         recon_errors = self.calculate_recon_errors(dataloader) # B, L, C
-        anomaly_scores = recon_errors.mean(dim=2).reshape(-1).detach().cpu() # B, L -> (T=B*L, )
+        #anomaly_scores = recon_errors.mean(dim=2).reshape(-1).detach().cpu() # B, L -> (T=B*L, )
+        anomaly_scores = recon_errors.mean(axis=2).reshape(-1)
         return anomaly_scores
 
 
@@ -150,7 +157,9 @@ class MLP_Tester(Tester):
                 Xhats.append(Xhat)
 
             recon_error = F.mse_loss(Xhat, X, reduction='none')
+            recon_error = recon_error.detach().cpu().numpy()
             recon_errors.append(recon_error)
+            torch.cuda.empty_cache()
 
         # save recon outputs
         if self.args.save_outputs:
@@ -164,7 +173,8 @@ class MLP_Tester(Tester):
             with open(Xhat_path, 'wb') as f:
                 torch.save(Xhats, f)
 
-        recon_errors = torch.cat(recon_errors, axis=0)
+        #recon_errors = torch.cat(recon_errors, axis=0)
+        recon_errors = np.concatenate(recon_errors, axis=0)
         return recon_errors
 
 

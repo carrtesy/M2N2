@@ -87,9 +87,9 @@ def calculate_pr_auc(gt, anomaly_scores, path, save_pr_curve=False):
     pr_auc = auc(rec, prec)
 
     if save_pr_curve:
-        with open(os.path.join(path, "fpr.npy"), 'wb') as f:
+        with open(os.path.join(path, "prec.npy"), 'wb') as f:
             np.save(f, prec)
-        with open(os.path.join(path, "tpr.npy"), 'wb') as f:
+        with open(os.path.join(path, "rec.npy"), 'wb') as f:
             np.save(f, rec)
         with open(os.path.join(path, "thr_prauc.npy"), 'wb') as f:
             np.save(f, thr)

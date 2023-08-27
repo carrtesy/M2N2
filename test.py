@@ -24,6 +24,7 @@
 #        Buddha Bless:   "No Bugs in my code"        #
 #                                                    #
 ######################################################
+import torch
 
 import wandb
 import hydra
@@ -50,6 +51,9 @@ from vus.utils.slidingWindows import find_length
 from ast import literal_eval
 import json
 
+
+torch.set_num_threads(1)
+
 warnings.filterwarnings("ignore")
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="test_defaults")
@@ -59,9 +63,9 @@ def main(cfg: DictConfig) -> None:
     args = prepare_arguments(cfg)
 
     # WANDB
-    wandb.login(key=WANDB_API_KEY)
+    #wandb.login(key=WANDB_API_KEY)
     WANDB_PROJECT_NAME, WANDB_ENTITY = "OnlineTSAD", "carrtesy"
-    wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id)
+    wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id, mode="offline")
     wandb.config.update(args)
 
     # Logger

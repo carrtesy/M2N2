@@ -17,7 +17,7 @@ from ast import literal_eval
 
 from sklearn.metrics import roc_curve, roc_auc_score
 from utils.metrics import calculate_roc_auc, calculate_pr_auc
-from vus.metrics import get_range_vus_roc
+# from vus.metrics import get_range_vus_roc
 
 
 matplotlib.rcParams['agg.path.chunksize'] = 10000

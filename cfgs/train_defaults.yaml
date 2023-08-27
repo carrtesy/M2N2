@@ -14,6 +14,7 @@ scaler: std
 # Training Hyperparameters
 lr: 1e-03
 epochs: 10
+L2_reg: 0
 
 # Saving Configs & Paths
 log_freq: 10

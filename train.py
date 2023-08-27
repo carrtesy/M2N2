@@ -44,6 +44,7 @@ from Exp.THOC import THOC_Trainer
 from Exp.OmniAnomaly import OmniAnomaly_Trainer
 from Exp.AnomalyTransformer import AnomalyTransformer_Trainer
 
+import torch
 
 warnings.filterwarnings("ignore")
 
@@ -54,9 +55,9 @@ def main(cfg: DictConfig) -> None:
     args = prepare_arguments(cfg)
 
     # WANDB
-    wandb.login(key=WANDB_API_KEY)
+    #wandb.login(key=WANDB_API_KEY)
     WANDB_PROJECT_NAME, WANDB_ENTITY = "OnlineTSAD", "carrtesy"
-    wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id)
+    wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id, mode="disabled", dir="/home/nas3_userJ/dmkim/OnlineTSAD/wandb")
     wandb.config.update(args)
 
     # Logger

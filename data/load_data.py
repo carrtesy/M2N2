@@ -212,6 +212,12 @@ class DataFactory:
         test_X = []
         test_y = []
 
+        # for year in test_years[:5]:
+        #     X = np.load(os.path.join(data_dir, "preprocessed", f"{year}_valid.npy"))
+        #     y = np.load(os.path.join(data_dir, "preprocessed", f"{year}_valid_label.npy"))
+        #     test_X.append(X)
+        #     test_y.append(y)
+
         for year in test_years:
             X = np.load(os.path.join(data_dir, "preprocessed", f"{year}.npy"))
             y = np.load(os.path.join(data_dir, "preprocessed", f"{year}_label.npy"))
