@@ -53,7 +53,7 @@ Request via guidelines in the [link](https://itrust.sutd.edu.sg/itrust-labs_data
 5. **MSL and SMAP**
 - Download with instructions from: https://github.com/khundman/telemanom
 ```bash
-curl -O https://s3-us-west-2.amazonaws.com/telemanom/data.zip && unzip data.zip && rm data.zip
+curl -O https://s3-us-west-2.amazonaws.com/telemanom/data.zip && mv data.zip data/NASA.zip && unzip data/NASA.zip -d data/NASA && rm data/NASA.zip
 ````
 
 6. **CreditCard**
