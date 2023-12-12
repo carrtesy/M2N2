@@ -24,37 +24,26 @@
 #        Buddha Bless:   "No Bugs in my code"        #
 #                                                    #
 ######################################################
-import torch
 
+import os
 import wandb
 import hydra
 from omegaconf import DictConfig
+import warnings; warnings.filterwarnings("ignore")
 
 from utils.logger import make_logger
 from utils.argpass import prepare_arguments
 from utils.tools import SEED_everything
-from utils.secret import WANDB_API_KEY
+from utils.secret import WANDB_API_KEY, WANDB_PROJECT_NAME, WANDB_ENTITY
 
-import warnings
-import os
-from data.load_data import DataFactory
-
-from Exp.MLP import MLP_Tester
-from Exp.LSTMEncDec import LSTMEncDec_Tester
-from Exp.USAD import USAD_Tester
-from Exp.THOC import THOC_Tester
-from Exp.OmniAnomaly import OmniAnomaly_Tester
-from Exp.AnomalyTransformer import AnomalyTransformer_Tester
-
+import torch
 import pandas as pd
-from vus.utils.slidingWindows import find_length
 from ast import literal_eval
 import json
 
+from Exp import MLP_Tester, LSTMEncDec_Tester, USAD_Tester, THOC_Tester, AnomalyTransformer_Tester
+from data.load_data import DataFactory
 
-torch.set_num_threads(1)
-
-warnings.filterwarnings("ignore")
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="test_defaults")
 def main(cfg: DictConfig) -> None:
@@ -63,8 +52,8 @@ def main(cfg: DictConfig) -> None:
     args = prepare_arguments(cfg)
 
     # WANDB
-    #wandb.login(key=WANDB_API_KEY)
-    WANDB_PROJECT_NAME, WANDB_ENTITY = "OnlineTSAD", "carrtesy"
+    wandb.login(key=WANDB_API_KEY)
+    
     wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id, mode="offline")
     wandb.config.update(args)
 
@@ -83,18 +72,12 @@ def main(cfg: DictConfig) -> None:
     train_dataset, train_loader, test_dataset, test_loader = datafactory()
     args.num_channels = train_dataset.X.shape[1]
 
-    # sliding window estimate for range-based metrics
-    sliding_windows = [find_length(train_dataset.X[:, c]) for c in range(args.num_channels)]
-    args.range_window_size = max(sliding_windows)
-    logger.info(f"sliding window for estimating range-based metrics: {args.range_window_size}")
-
     # Model
     logger.info(f"Loading pre-trained {args.model.name} model...")
     Testers = {
         "MLP": MLP_Tester,
         "LSTMEncDec": LSTMEncDec_Tester,
         "USAD": USAD_Tester,
-        "OmniAnomaly": OmniAnomaly_Tester,
         "THOC": THOC_Tester,
         "AnomalyTransformer": AnomalyTransformer_Tester,
     }
@@ -110,7 +93,7 @@ def main(cfg: DictConfig) -> None:
     # infer
     cols = ["tau", "Accuracy", "Precision", "Recall", "F1",  "tn", "fp", "fn", "tp"]
     cols += ["Accuracy_PA", "Precision_PA", "Recall_PA", "F1_PA", "tn_PA", "fp_PA", "fn_PA", "tp_PA"]
-    cols += ["ROC_AUC", "PR_AUC", "R_AUC_ROC", "R_AUC_PR", "VUS_ROC", "VUS_PR"]
+    cols += ["ROC_AUC", "PR_AUC"]
     result_df = pd.DataFrame([], columns=cols)
     for option in args.infer_options:
         result = tester.infer(mode=option, cols=cols)

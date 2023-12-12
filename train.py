@@ -25,28 +25,28 @@
 #                                                    #
 ######################################################
 
+import os
 import wandb
 import hydra
 from omegaconf import DictConfig
+import warnings; warnings.filterwarnings("ignore")
 
 from utils.logger import make_logger
 from utils.argpass import prepare_arguments
 from utils.tools import SEED_everything
 from utils.secret import WANDB_API_KEY
 
-import warnings
-import os
 from data.load_data import DataFactory
-from Exp.MLP import MLP_Trainer
-from Exp.LSTMEncDec import LSTMEncDec_Trainer
-from Exp.USAD import USAD_Trainer
-from Exp.THOC import THOC_Trainer
-from Exp.OmniAnomaly import OmniAnomaly_Trainer
-from Exp.AnomalyTransformer import AnomalyTransformer_Trainer
+
+from Exp import MLP_Trainer, LSTMEncDec_Trainer, USAD_Trainer, THOC_Trainer, AnomalyTransformer_Trainer
+
+# from Exp.MLP import MLP_Trainer
+# from Exp.LSTMEncDec import LSTMEncDec_Trainer
+# from Exp.USAD import USAD_Trainer
+# from Exp.THOC import THOC_Trainer
+# from Exp.AnomalyTransformer import AnomalyTransformer_Trainer
 
 import torch
-
-warnings.filterwarnings("ignore")
 
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="train_defaults")
@@ -55,9 +55,9 @@ def main(cfg: DictConfig) -> None:
     args = prepare_arguments(cfg)
 
     # WANDB
-    #wandb.login(key=WANDB_API_KEY)
-    WANDB_PROJECT_NAME, WANDB_ENTITY = "OnlineTSAD", "carrtesy"
-    wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id, mode="disabled", dir="/home/nas3_userJ/dmkim/OnlineTSAD/wandb")
+    wandb.login(key=WANDB_API_KEY)
+    WANDB_PROJECT_NAME, WANDB_ENTITY = "M2N2", "carrtesy"
+    wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id)
     wandb.config.update(args)
 
     # Logger
@@ -81,7 +81,6 @@ def main(cfg: DictConfig) -> None:
         "MLP": MLP_Trainer,
         "LSTMEncDec": LSTMEncDec_Trainer,
         "USAD": USAD_Trainer,
-        "OmniAnomaly": OmniAnomaly_Trainer,
         "THOC": THOC_Trainer,
         "AnomalyTransformer": AnomalyTransformer_Trainer,
     }
