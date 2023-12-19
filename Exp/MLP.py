@@ -18,7 +18,6 @@ import numpy as np
 from utils.metrics import get_summary_stats
 from utils.tools import plot_interval
 from utils.metrics import calculate_roc_auc, calculate_pr_auc
-# from vus.metrics import get_range_vus_roc
 
 
 class MLP_Trainer(Trainer):
@@ -35,12 +34,9 @@ class MLP_Trainer(Trainer):
             latent_space_size=args.model.latent_dim,
             gamma=args.gamma,
             normalization=args.normalization,
-            use_sigmoid_output=args.model.use_sigmoid_output,
-            use_dropout=args.model.use_dropout,
-            use_batchnorm=args.model.use_batchnorm,
         ).to(self.args.device)
 
-        self.optimizer = torch.optim.AdamW(params=self.model.parameters(), lr=args.lr, weight_decay=self.args.L2_reg)
+        self.optimizer = torch.optim.AdamW(params=self.model.parameters(), lr=args.lr, weight_decay=self.args.L2_reg) # L2 Reg is set to zero by default, but can be set as needed.
         self.logger.info(f"\n{self.model}")
 
 
@@ -56,7 +52,6 @@ class MLP_Trainer(Trainer):
 
         best_train_stats = None
         for epoch in train_iterator:
-            # train
             train_stats = self.train_epoch()
             self.logger.info(f"epoch {epoch} | train_stats: {train_stats}")
             self.checkpoint(os.path.join(self.args.checkpoint_path, f"epoch{epoch}.pth"))
@@ -116,9 +111,6 @@ class MLP_Tester(Tester):
             latent_space_size=args.model.latent_dim,
             gamma=args.gamma,
             normalization=args.normalization,
-            use_sigmoid_output=args.model.use_sigmoid_output,
-            use_dropout=args.model.use_dropout,
-            use_batchnorm=args.model.use_batchnorm,
         ).to(self.args.device)
 
         if load:
@@ -267,9 +259,6 @@ class MLP_Tester(Tester):
                                   )
         best_result["PR_AUC"] = pr_auc
 
-        range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
-        result.update(range_metrics)
-
         result_df = pd.concat([result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
         result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
 
@@ -394,9 +383,6 @@ class MLP_Tester(Tester):
                                       )
             result["PR_AUC"] = pr_auc
 
-            range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
-            result.update(range_metrics)
-
             self.logger.info(result)
             result_df = pd.concat(
                 [result_df, pd.DataFrame([result], index=[f"Q{q * 100:.3f}"], columns=result_df.columns)])
@@ -414,9 +400,6 @@ class MLP_Tester(Tester):
                                   save_pr_curve=self.args.save_pr_curve,
                                   )
         best_result["PR_AUC"] = pr_auc
-
-        range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
-        result.update(range_metrics)
 
         result_df = pd.concat(
             [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
@@ -529,9 +512,6 @@ class MLP_Tester(Tester):
                                       save_pr_curve=self.args.save_pr_curve,
                                       )
             result["PR_AUC"] = pr_auc
-
-            range_metrics = get_range_vus_roc(score=anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
-            result.update(range_metrics)
 
             self.logger.info(result)
 

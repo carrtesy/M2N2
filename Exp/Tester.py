@@ -139,9 +139,6 @@ class Tester:
             result["ROC_AUC"] = roc_auc
             result["PR_AUC"] = pr_auc
 
-            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
-            result.update(range_metrics)
-
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
 
@@ -165,9 +162,6 @@ class Tester:
                                       save_pr_curve=self.args.save_pr_curve,
                                       )
             result["PR_AUC"] = pr_auc
-
-            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
-            result.update(range_metrics)
 
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
@@ -194,9 +188,6 @@ class Tester:
                                       )
             result["PR_AUC"] = pr_auc
 
-            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
-            result.update(range_metrics)
-
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
@@ -220,9 +211,6 @@ class Tester:
                                       save_pr_curve=self.args.save_pr_curve,
                                       )
             result["PR_AUC"] = pr_auc
-
-            range_metrics = get_range_vus_roc(score=anoscs, labels=gt, slidingWindow=self.args.range_window_size)
-            result.update(range_metrics)
 
             wandb.log(result)
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
@@ -295,9 +283,6 @@ class Tester:
                                   )
         result["PR_AUC"] = pr_auc
 
-        range_metrics = get_range_vus_roc(score=self.test_anoscs, labels=self.gt, slidingWindow=self.args.range_window_size)
-        result.update(range_metrics)
-
         result_df = pd.concat(
             [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
         result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
@@ -339,4 +324,3 @@ class Tester:
 
     def online_label_all(self, *args):
         raise NotImplementedError()
-
