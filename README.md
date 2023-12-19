@@ -1,12 +1,14 @@
 # M2N2 (When Model Meets New Normals)
 
 Official repository for the paper
-"When Model Meets New Normals: Test-time Adaptation for Unsupervised Time-series Anomaly Detection", Under Review.
+"When Model Meets New Normals: Test-time Adaptation for Unsupervised Time-series Anomaly Detection", AAAI 2024.
 
 Arxiv Preprint: [Link]()
 
-## News
-- [20230900] We have decided to release our paper at arxiv, and the code repo.
+<figure>
+    <img src="./figures/new_normals.jpg" alt="New Normal">
+    <figcaption>DALL·E, <em>"New Normal"</em>, 2023. </figcaption>
+</figure>
 
 ## About Our Work
 Time-series Anomaly Detection (TSAD) deals with the problem of detecting anomalous timesteps,
@@ -14,16 +16,16 @@ by learning "normalities" from the sequence of observations.
 
 Our research starts from the question:
 
-> "Is it possible that the concept of normality be changed over time?"
+> "Is the concept of normal remain consistent over time?"
 
-We have observed that in time-series anomaly detection task, 
-distribution shift of the concept of normalities naturally occurs, 
-which poses a significan challenge in modeling time-series anomaly detection.
+In time-series anomaly detection task, we challenge this assumption, and show that the concept of normal changes through time.
 
-<img src="./figures/paper_figures/main_figure_v230816_1235.png">
+We call this problem as the "New Normal Problem," 
+with the explicit aim of advocating the need to learn how to adapt to emerging norms rather than clinging to historical ones. 
 
-We call this problem as "New-normal problem", 
-and shows that simple normalization strategy along with model update can handle this probelm effectively.
+Our research also highlights the efficacy of our simple adaptation and normalization strategy, emphasizing the importance of adapting rather than persisting in the past.
+
+
 
 ## About the dataset
 All datasets are assumed to be in "data" folder. 
@@ -70,11 +72,6 @@ set threshold to offline best f1 score
 python test.py (...) infer_options=["offline"] thresholding=off_f1_best
 ```
 
-run all thresholds in range(a, b, c)
-
-``` 
-python test.py (...) infer_options=["offline_all"] +qStart=0.90 +qEnd=1.00 +qStep=0.01
-```
 
 save run information
 ```
@@ -85,3 +82,8 @@ load_anoscs: True # load previously calcuated anomaly score (if not exist, start
 save_outputs: False # gt (X.pt) and reconstructed (Xhat.pt)
 save_roc_curve: False # whether to save fpr, tpr, thrs from sklearn.roc_curve
 ```
+
+
+## TODO Lists
+- Refactoring
+- Anoshift Benchmark
