@@ -1,7 +1,7 @@
 # Exp ID
 exp_id: default
 infer_options: [
-  "offline_all",
+  "offline",
 ]
 SEED: 2023
 
