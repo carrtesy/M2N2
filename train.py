@@ -34,19 +34,12 @@ import warnings; warnings.filterwarnings("ignore")
 from utils.logger import make_logger
 from utils.argpass import prepare_arguments
 from utils.tools import SEED_everything
-from utils.secret import WANDB_API_KEY
-
-from data.load_data import DataFactory
-
-from Exp import MLP_Trainer, LSTMEncDec_Trainer, USAD_Trainer, THOC_Trainer, AnomalyTransformer_Trainer
-
-# from Exp.MLP import MLP_Trainer
-# from Exp.LSTMEncDec import LSTMEncDec_Trainer
-# from Exp.USAD import USAD_Trainer
-# from Exp.THOC import THOC_Trainer
-# from Exp.AnomalyTransformer import AnomalyTransformer_Trainer
+from utils.secret import WANDB_API_KEY, WANDB_ENTITY, WANDB_PROJECT_NAME
 
 import torch
+
+from Exp import MLP_Trainer, LSTMEncDec_Trainer, USAD_Trainer, THOC_Trainer, AnomalyTransformer_Trainer
+from data.load_data import DataFactory
 
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="train_defaults")
@@ -56,7 +49,6 @@ def main(cfg: DictConfig) -> None:
 
     # WANDB
     wandb.login(key=WANDB_API_KEY)
-    WANDB_PROJECT_NAME, WANDB_ENTITY = "M2N2", "carrtesy"
     wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id)
     wandb.config.update(args)
 

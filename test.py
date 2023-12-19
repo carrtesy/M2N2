@@ -53,7 +53,6 @@ def main(cfg: DictConfig) -> None:
 
     # WANDB
     wandb.login(key=WANDB_API_KEY)
-    
     wandb.init(project=WANDB_PROJECT_NAME, entity=WANDB_ENTITY, name=args.exp_id, mode="offline")
     wandb.config.update(args)
 
