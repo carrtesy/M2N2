@@ -31,7 +31,6 @@ class DataFactory:
             "SMD": self.load_SMD,
             "yahoo":self.load_yahoo,
             "CreditCard": self.load_CreditCard,
-            "Anoshift": self.load_Anoshift,
         }
 
         self.transforms = {
@@ -185,47 +184,6 @@ class DataFactory:
 
         train_X, test_X = train_X.astype(np.float32), test_X.astype(np.float32)
         train_y, test_y = train_y.astype(int), test_y.astype(int)
-
-        assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
-        assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
-
-        return train_X, train_y, test_X, test_y
-
-    @staticmethod
-    def load_Anoshift():
-        data_dir = "data/Kyoto-2016_AnoShift"
-        train_years = [2006, 2007, 2008, 2009, 2010]
-        test_years = [2011, 2012, 2013, 2014, 2015]
-
-        train_X = []
-        train_y = []
-
-        for year in train_years:
-            X = np.load(os.path.join(data_dir, "preprocessed", f"{year}.npy"))
-            y = np.load(os.path.join(data_dir, "preprocessed", f"{year}_label.npy"))
-            train_X.append(X)
-            train_y.append(y)
-
-        train_X = np.concatenate(train_X)
-        train_y = np.concatenate(train_y)
-
-        test_X = []
-        test_y = []
-
-        # for year in test_years[:5]:
-        #     X = np.load(os.path.join(data_dir, "preprocessed", f"{year}_valid.npy"))
-        #     y = np.load(os.path.join(data_dir, "preprocessed", f"{year}_valid_label.npy"))
-        #     test_X.append(X)
-        #     test_y.append(y)
-
-        for year in test_years:
-            X = np.load(os.path.join(data_dir, "preprocessed", f"{year}.npy"))
-            y = np.load(os.path.join(data_dir, "preprocessed", f"{year}_label.npy"))
-            test_X.append(X)
-            test_y.append(y)
-
-        test_X = np.concatenate(test_X)
-        test_y = np.concatenate(test_y)
 
         assert np.isnan(train_X).sum() == 0 and np.isnan(train_y).sum() == 0
         assert np.isnan(test_X).sum() == 0 and np.isnan(test_y).sum() == 0
@@ -503,4 +461,3 @@ if __name__ == "__main__":
         window_size=W,
         stride=S,
     )
-
