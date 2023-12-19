@@ -4,6 +4,26 @@ import random
 import pandas as pd
 from torch.autograd import Variable
 from sklearn.metrics import roc_curve
+import matplotlib as mat
+from matplotlib import font_manager, rc
+
+
+def setPlotStyle():    
+    # mat.rcParams['font.family'] = "serif"
+    # mat.rcParams['font.serif'] = ["Arial"]
+    # mat.rcParams['font.family'] = "sans-serif"
+    # mat.rcParams['font.sans-serif'] = "Times new roman"
+    # mat.rcParams["axes.titlesize"] = "x-large"
+    mat.rcParams['font.size'] = 15
+    mat.rcParams['legend.fontsize'] = 15
+    mat.rcParams['lines.linewidth'] = 2
+    mat.rcParams['lines.color'] = 'r'
+    mat.rcParams['axes.grid'] = 1     
+    mat.rcParams['axes.xmargin'] = 0.1     
+    mat.rcParams['axes.ymargin'] = 0.1     
+    mat.rcParams["mathtext.fontset"] = "dejavuserif" #"cm", "stix", etc.
+    mat.rcParams['figure.dpi'] = 500
+    mat.rcParams['savefig.dpi'] = 500
 
 
 def SEED_everything(SEED):
