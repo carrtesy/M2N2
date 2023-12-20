@@ -142,35 +142,6 @@ class Tester:
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
 
-        elif mode == "offline_all":
-            result_df = self.offline_all(
-                cols=cols, qStart=self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
-
-        elif mode == "offline_detrend":
-            anoscs, pred = self.offline_detrend(self.test_loader, tau, normalization=self.args.normalization)
-            result = get_summary_stats(gt, pred)
-            roc_auc = calculate_roc_auc(gt, anoscs,
-                                        path=self.args.output_path,
-                                        save_roc_curve=self.args.save_roc_curve,
-                                        drop_intermediate=False
-                                        )
-
-            result["ROC_AUC"] = roc_auc
-            pr_auc = calculate_pr_auc(gt, anoscs,
-                                      path=self.args.output_path,
-                                      save_pr_curve=self.args.save_pr_curve,
-                                      )
-            result["PR_AUC"] = pr_auc
-
-            wandb.log(result)
-            result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
-            result_df.at[mode, "tau"] = tau
-
-        elif mode == "offline_detrend_all":
-            result_df = self.offline_detrend_all(
-                cols=cols, qStart=self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
 
         elif mode == "online":
             anoscs, pred = self.online(self.test_loader, tau, normalization=self.args.normalization)
@@ -192,34 +163,6 @@ class Tester:
             result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
             result_df.at[mode, "tau"] = tau
 
-        elif mode == "online_all":
-            result_df = self.online_all(
-                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
-
-        elif mode == "online_label":
-            anoscs, pred = self.online_label(self.test_loader, tau, normalization=self.args.normalization)
-            result = get_summary_stats(gt, pred)
-            roc_auc = calculate_roc_auc(gt, anoscs,
-                                        path=self.args.output_path,
-                                        save_roc_curve=self.args.save_roc_curve,
-                                        drop_intermediate=False)
-            result["ROC_AUC"] = roc_auc
-
-            pr_auc = calculate_pr_auc(gt, anoscs,
-                                      path=self.args.output_path,
-                                      save_pr_curve=self.args.save_pr_curve,
-                                      )
-            result["PR_AUC"] = pr_auc
-
-            wandb.log(result)
-            result_df = pd.DataFrame([result], index=[mode], columns=result_df.columns)
-            result_df.at[mode, "tau"] = tau
-
-        elif mode == "online_label_all":
-            result_df = self.online_label_all(
-                cols=cols, qStart= self.args.qStart, qEnd=self.args.qEnd, qStep=self.args.qStep
-            )
 
         if self.args.save_result:
             filename = f"{self.args.exp_id}_{mode}_{th}" if (not hasattr(self.args, "qStart")) \
@@ -262,65 +205,5 @@ class Tester:
         return self.test_anoscs, pred
 
 
-    def offline_all(self, cols, qStart=0.90, qEnd=1.00, qStep=0.01):
-        result_df = pd.DataFrame(columns=cols)
-
-        # according to quantiles.
-        for q in np.arange(qStart, qEnd + 1e-07, qStep):
-            th = np.quantile(self.train_anoscs, min(q, qEnd))
-            result = get_summary_stats(self.gt, self.test_anoscs >= th)
-            result_df = pd.concat([result_df, pd.DataFrame([result], index=[f"Q{q*100:.3f}"], columns=result_df.columns)])
-            result_df.at[f"Q{q*100:.3f}", "tau"] = th
-
-        # off_f1_best
-        best_result = get_summary_stats(self.gt, self.test_anoscs >= self.th_off_f1_best)
-        roc_auc = calculate_roc_auc(self.gt, self.test_anoscs, path=self.args.output_path,
-                                    save_roc_curve=self.args.save_roc_curve)
-        best_result["ROC_AUC"] = roc_auc
-        pr_auc = calculate_pr_auc(self.gt, self.test_anoscs,
-                                  path=self.args.output_path,
-                                  save_pr_curve=self.args.save_pr_curve,
-                                  )
-        result["PR_AUC"] = pr_auc
-
-        result_df = pd.concat(
-            [result_df, pd.DataFrame([best_result], index=[f"Q_off_f1_best"], columns=result_df.columns)])
-        result_df.at[f"Q_off_f1_best", "tau"] = self.th_off_f1_best
-
-        # plot results w/o TTA
-        plt.figure(figsize=(20, 6))
-        plt.plot(self.test_anoscs, color="blue", label="anomaly score w/o online learning")
-        plt.axhline(self.th_q95, color="C1", label="Q95 threshold")
-        plt.axhline(self.th_q99, color="C2", label="Q99 threshold")
-        plt.axhline(self.th_q100, color="C3", label="Q100 threshold")
-
-        plt.axhline(self.th_off_f1_best, color="C4", label="threshold w/ test data")
-        plt.legend()
-        plot_interval(plt, self.gt)
-        plt.savefig(os.path.join(self.args.plot_path, f"{self.args.exp_id}_woTTA.png"))
-        wandb.log({"woTTA": wandb.Image(plt)})
-        return result_df
-
-
-    def offline_detrend(self, *args):
-        raise NotImplementedError()
-
-
-    def offline_detrend_all(self, *args):
-        raise NotImplementedError()
-
-
     def online(self, *args):
-        raise NotImplementedError()
-
-
-    def online_all(self, *args):
-        raise NotImplementedError()
-
-
-    def online_label(self, *args):
-        raise NotImplementedError()
-
-
-    def online_label_all(self, *args):
         raise NotImplementedError()
