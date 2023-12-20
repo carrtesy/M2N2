@@ -1,9 +1,9 @@
 # M2N2 (When Model Meets New Normals)
 
 Official repository for the paper
-"When Model Meets New Normals: Test-time Adaptation for Unsupervised Time-series Anomaly Detection", AAAI 2024.
+"When Model Meets New Normals: Test-time Adaptation for Unsupervised Time-series Anomaly Detection", AAAI 2024. [[Arxiv]](http://arxiv.org/abs/2312.11976)
 
-Arxiv Preprint: [Link]()
+This repository is **not yet completed**, so please check this as a reference only. 
 
 <figure>
     <img src="./figures/new_normals.jpg" alt="New Normal">
