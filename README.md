@@ -63,6 +63,13 @@ curl -O https://s3-us-west-2.amazonaws.com/telemanom/data.zip && mv data.zip dat
 7. **Yahoo**
 - request to: https://webscope.sandbox.yahoo.com/
 
+## Environment
+Exact environment setting is lost, but I still have wandb logs that stores environments that I run this codes. 
+- python 3.8.18
+- GPU: NVIDIA GeForce RTX 3070
+- see [requirements.txt](https://github.com/carrtesy/M2N2/blob/master/requirements.txt)
+
+
 ## Options
 
 set threshold to offline best f1 score
@@ -81,6 +88,9 @@ save_outputs: False # gt (X.pt) and reconstructed (Xhat.pt)
 save_roc_curve: False # whether to save fpr, tpr, thrs from sklearn.roc_curve
 ```
 
+## Contact
+My email account listed in the paper (tommy.dm.kim@kaist.ac.kr) is deactivated. 
+Please contact me through my personal account (tommy.dm.kim@gmail.com), or visit my [homepage](https://sites.google.com/view/tommy-dm-kim/about-me)
 
 ## TODO Lists
 - Refactoring
